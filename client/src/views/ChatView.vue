@@ -61,6 +61,8 @@ const chatAgendas = ref([]);
 const chatSummaries = ref([]);
 const recentSummary = ref([]);
 const currentGroupId = ref("");
+const discussionInsights = ref([]);
+const discussionTerms = ref([]);
 
 // 获取用户列表
 const fetchUsers = async () => {
@@ -123,6 +125,30 @@ const fetchRecentSummary = async (groupId) => {
   }
 };
 
+// 获取讨论见解
+const fetchDiscussionInsights = async (groupId) => {
+  try {
+    const response = await axios.get(
+      `http://localhost:8000/api/discussion/insights/${groupId}`
+    );
+    discussionInsights.value = response.data;
+  } catch (error) {
+    console.error("获取讨论见解失败:", error);
+  }
+};
+
+// 获取讨论术语
+const fetchDiscussionTerms = async (groupId) => {
+  try {
+    const response = await axios.get(
+      `http://localhost:8000/api/discussion/terms/${groupId}`
+    );
+    discussionTerms.value = response.data;
+  } catch (error) {
+    console.error("获取讨论术语失败:", error);
+  }
+};
+
 // 发送消息
 const sendMessage = async (message) => {
   try {
@@ -144,6 +170,8 @@ const fetchChatData = (groupId) => {
   fetchChatAgendas(groupId);
   fetchChatSummaries(groupId);
   fetchRecentSummary(groupId);
+  fetchDiscussionInsights(groupId);
+  fetchDiscussionTerms(groupId);
 };
 
 // 页面加载时获取第一个小组的数据

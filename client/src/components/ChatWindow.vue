@@ -16,7 +16,7 @@ const props = defineProps({
 
 // **获取用户名**
 const getUsername = (userId) => {
-  return props.users?.[userId] || "未知用户"; // 避免 users 未定义
+  return props.users?.[userId] || "未知用户";
 };
 </script>
 

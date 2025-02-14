@@ -75,48 +75,14 @@ async def send_chat_message(payload: ChatMessage):
     return response.data
 
 # ========== 📌 AI 机器人 API ==========
-class AIRequest(BaseModel):
-    group_id: str
-    user_message: str
 
-@router.post("/api/ai/respond")
-async def ai_respond(payload: AIRequest):
-    """ 让 AI 机器人根据 group_id 生成回答 """
-    group_id = payload.group_id
-    user_message = payload.user_message
-
-    # 从数据库获取与 group_id 关联的 AI bot
-    ai_bot = supabase_client.table("ai_bots").select("*").eq("group_id", group_id).execute()
-    if not ai_bot.data:
-        return {"error": "AI bot not found"}
-
-    bot_name = ai_bot.data[0]["name"]
-
-    # 发送请求到学校的 GPT API
-    request_payload = {
-        "bot_name": bot_name,
-        "user_message": user_message
-    }
-    headers = {"Authorization": f"Bearer {SCHOOL_GPT_API_KEY}"} if SCHOOL_GPT_API_KEY else {}
-
-    try:
-        # 向学校的 GPT API 发送请求
-        response = requests.post(SCHOOL_GPT_API_URL, json=request_payload, headers=headers)
-        response.raise_for_status()
-        ai_reply = response.json().get("reply", "AI 没有返回消息")
-
-        # 将 AI 生成的回复存入数据库
-        supabase_client.table("chat_messages").insert({
-            "group_id": group_id,
-            "user_id": "ai_bot",
-            "message": ai_reply
-        }).execute()
-
-        return {"bot_response": ai_reply}
-
-    except requests.exceptions.RequestException as e:
-        # 捕获请求异常并抛出 HTTP 500 错误
-        raise HTTPException(status_code=500, detail=f"学校 API 请求失败: {str(e)}")
+@router.get("/api/ai/bots/{group_id}")
+async def get_ai_bot(group_id: str):
+    """ 获取指定小组的AI机器人信息 """
+    response = supabase_client.table("ai_bots").select("*").eq("group_id", group_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="未找到AI机器人")
+    return response.data[0]
     
     # ========== 📌 聊天议程 API ==========
 @router.get("/api/chat/agenda/{group_id}")
@@ -144,3 +110,21 @@ async def get_latest_chat_summary(group_id: str):
     if not response.data:
         raise HTTPException(status_code=404, detail="未找到最近的聊天总结")
     return response.data[0]
+
+# ========== 📌 讨论见解 API ==========
+@router.get("/api/discussion/insights/{group_id}")
+async def get_discussion_insights(group_id: str):
+    """ 获取指定小组的讨论见解 """
+    response = supabase_client.table("discussion_insights").select("*").eq("group_id", group_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="未找到讨论见解")
+    return response.data
+
+# ========== 📌 讨论术语 API ==========
+@router.get("/api/discussion/terms/{group_id}")
+async def get_discussion_terms(group_id: str):
+    """ 获取指定小组的讨论术语 """
+    response = supabase_client.table("discussion_terms").select("*").eq("group_id", group_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="未找到讨论术语")
+    return response.data
