@@ -1,130 +1,160 @@
 import os
 import requests
-from pydantic import BaseModel
-from dotenv import load_dotenv  # 读取 .env 文件
+from pydantic import BaseModel, Field
+from typing import Optional
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from app.database import supabase_client
+from app.xai_api import generate_ai_response  # ✅ 导入 xAI 处理逻辑
+from app.websocket_routes import (
+    push_chat_message, 
+    push_agenda_update, 
+    push_ai_analysis_update, 
+    push_discussion_terms_update
+)
 
-# 载入 .env 配置
 load_dotenv()
-
-# 读取 Supabase 配置（如果有）
-SCHOOL_GPT_API_URL = os.getenv("SCHOOL_GPT_API_URL")
-SCHOOL_GPT_API_KEY = os.getenv("SCHOOL_GPT_API_KEY")
 
 router = APIRouter()
 
 # ========== 📌 用户管理 API ==========
 @router.get("/api/users/")
 async def get_users():
-    """ 获取所有用户 """
-    response = supabase_client.table("users").select("*").execute()
-    return response.data
+    return supabase_client.table("users").select("*").execute().data
 
 @router.get("/api/users/{user_id}")
 async def get_user(user_id: str):
-    """ 获取单个用户信息 """
-    response = supabase_client.table("users").select("*").eq("user_id", user_id).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="用户未找到")
-    return response.data[0]
+    return supabase_client.table("users").select("*").eq("user_id", user_id).execute().data
 
 # ========== 📌 小组管理 API ==========
 @router.get("/api/groups/")
 async def get_groups():
-    """ 获取所有小组 """
-    response = supabase_client.table("groups").select("*").execute()
-    return response.data
+    return supabase_client.table("groups").select("*").execute().data
 
 @router.get("/api/groups/{group_id}")
 async def get_group(group_id: str):
-    """ 获取单个小组信息 """
-    response = supabase_client.table("groups").select("*").eq("id", group_id).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="小组未找到")
-    return response.data[0]
+    return supabase_client.table("groups").select("*").eq("id", group_id).execute().data
 
 @router.get("/api/groups/{group_id}/members")
 async def get_group_members(group_id: str):
-    """ 获取小组成员 """
-    response = supabase_client.table("group_memberships").select("*").eq("group_id", group_id).execute()
-    return response.data
+    return supabase_client.table("group_memberships").select("*").eq("group_id", group_id).execute().data
+
+
+# ========== 📌 AI 机器人管理 API ==========
+
+@router.get("/api/ai_bots/")
+async def get_ai_bots():
+    """
+    获取所有 AI 机器人信息
+    """
+    return supabase_client.table("ai_bots").select("*").execute().data
+
+@router.get("/api/ai_bots/{bot_id}")
+async def get_ai_bot(bot_id: str):
+    """
+    根据 AI 机器人 ID 获取具体的机器人信息
+    """
+    return supabase_client.table("ai_bots").select("*").eq("id", bot_id).execute().data
+
+@router.get("/api/ai_bots/group/{group_id}")
+async def get_ai_bots_by_group(group_id: str):
+    """
+    获取特定小组的 AI 机器人
+    """
+    return supabase_client.table("ai_bots").select("*").eq("group_id", group_id).execute().data
+
+@router.get("/api/ai_bots/user/{user_id}")
+async def get_ai_bots_by_user(user_id: str):
+    """
+    获取属于特定用户的 AI 机器人
+    """
+    return supabase_client.table("ai_bots").select("*").eq("user_id", user_id).execute().data
 
 # ========== 📌 聊天 API ==========
 @router.get("/api/chat/{group_id}")
 async def get_chat_history(group_id: str):
-    """ 获取某个小组的聊天记录 """
-    response = supabase_client.table("chat_messages").select("*").eq("group_id", group_id).order("created_at", desc=True).execute()
-    return response.data
-
+    return (
+        supabase_client.table("chat_messages")
+        .select("*")
+        .eq("group_id", group_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
 
 class ChatMessage(BaseModel):
     group_id: str
-    user_id: str
+    user_id: Optional[str] = None  # 用户 ID（如果是 AI 机器人，可能为空）
+    chatbot_id: Optional[str] = None  # AI 机器人 ID
     message: str
+    role: str = Field(default="user")  # "user" 或 "bot"
 
 @router.post("/api/chat/send")
 async def send_chat_message(payload: ChatMessage):
-    """ 发送消息到 chat_messages 表 """
-    data = {
-        "group_id": payload.group_id,
-        "user_id": payload.user_id,
-        "message": payload.message
-    }
-    response = supabase_client.table("chat_messages").insert(data).execute()
-    return response.data
-
-# ========== 📌 AI 机器人 API ==========
-
-@router.get("/api/ai/bots/{group_id}")
-async def get_ai_bot(group_id: str):
-    """ 获取指定小组的AI机器人信息 """
-    response = supabase_client.table("ai_bots").select("*").eq("group_id", group_id).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="未找到AI机器人")
-    return response.data[0]
+    data = payload.dict()
     
-    # ========== 📌 聊天议程 API ==========
+    # 插入数据库
+    inserted_data = supabase_client.table("chat_messages").insert(data).execute().data
+
+    if inserted_data:
+        await push_chat_message(payload.group_id, inserted_data[0])  # 发送 WebSocket 消息
+
+    return inserted_data
+
+# ========== 📌 聊天议程 API ==========
 @router.get("/api/chat/agenda/{group_id}")
 async def get_chat_agenda(group_id: str):
-    """ 获取指定小组的聊天议程 """
-    response = supabase_client.table("chat_agendas").select("*").eq("group_id", group_id).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="未找到聊天议程")
-    return response.data
+    return supabase_client.table("chat_agendas").select("*").eq("group_id", group_id).execute().data
 
-# ========== 📌 聊天实时汇总 API ==========
-@router.get("/api/chat/summaries/{group_id}")
-async def get_chat_summaries(group_id: str):
-    """ 获取指定小组的聊天实时汇总 """
-    response = supabase_client.table("chat_summaries").select("*").eq("group_id", group_id).order("summary_time", desc=True).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="未找到聊天实时汇总")
-    return response.data
+@router.post("/api/chat/agenda/{group_id}")
+async def update_chat_agenda(group_id: str, agenda_data: dict):
+    updated_agenda = supabase_client.table("chat_agendas").upsert(agenda_data).execute().data
 
-# ========== 📌 最近1分钟聊天总结 API ==========
-@router.get("/api/chat/summary/latest/{group_id}")
-async def get_latest_chat_summary(group_id: str):
-    """ 获取指定小组的最近1分钟聊天总结 """
-    response = supabase_client.table("chat_summaries").select("*").eq("group_id", group_id).order("summary_time", desc=True).limit(1).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="未找到最近的聊天总结")
-    return response.data[0]
+    if updated_agenda:
+        await push_agenda_update(group_id, updated_agenda)  # 发送 WebSocket 消息
 
-# ========== 📌 讨论见解 API ==========
+    return updated_agenda
+
+# ========== 📌 AI 讨论见解 API ==========
 @router.get("/api/discussion/insights/{group_id}")
 async def get_discussion_insights(group_id: str):
-    """ 获取指定小组的讨论见解 """
-    response = supabase_client.table("discussion_insights").select("*").eq("group_id", group_id).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="未找到讨论见解")
-    return response.data
+    return supabase_client.table("discussion_insights").select("*").eq("group_id", group_id).execute().data
+
+@router.post("/api/discussion/insights/{group_id}")
+async def update_discussion_insights(group_id: str, insights_data: dict):
+    updated_insights = supabase_client.table("discussion_insights").upsert(insights_data).execute().data
+
+    if updated_insights:
+        await push_ai_analysis_update(group_id, updated_insights)  # 发送 WebSocket 消息
+
+    return updated_insights
 
 # ========== 📌 讨论术语 API ==========
 @router.get("/api/discussion/terms/{group_id}")
 async def get_discussion_terms(group_id: str):
-    """ 获取指定小组的讨论术语 """
-    response = supabase_client.table("discussion_terms").select("*").eq("group_id", group_id).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="未找到讨论术语")
-    return response.data
+    return supabase_client.table("discussion_terms").select("*").eq("group_id", group_id).execute().data
+
+@router.post("/api/discussion/terms/{group_id}")
+async def update_discussion_terms(group_id: str, terms_data: dict):
+    updated_terms = supabase_client.table("discussion_terms").upsert(terms_data).execute().data
+
+    if updated_terms:
+        await push_discussion_terms_update(group_id, updated_terms)  # 发送 WebSocket 消息
+
+    return updated_terms
+
+
+#  ========== ✅AI 生成见解接口  ========== 
+@router.get("/api/discussion/insights/{group_id}")
+async def get_discussion_insights(group_id: str):
+    """
+    获取指定小组的历史 AI 见解
+    """
+    return (
+        supabase_client.table("discussion_insights")
+        .select("*")
+        .eq("group_id", group_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )

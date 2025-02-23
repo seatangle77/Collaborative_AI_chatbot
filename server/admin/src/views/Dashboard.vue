@@ -1,8 +1,7 @@
 <template>
   <el-container>
-    <!-- 侧边栏 -->
     <el-aside width="250px">
-      <el-menu :default-openeds="['1', '2', '3', '4']">
+      <el-menu :default-openeds="['1', '2', '3', '4', '5', '6']">
         <el-sub-menu index="1">
           <template #title
             ><el-icon><User /></el-icon>用户管理</template
@@ -43,10 +42,16 @@
             <el-icon><ChatDotRound /></el-icon> {{ api.name }}
           </el-menu-item>
         </el-sub-menu>
+        <el-sub-menu index="6">
+          <template #title
+            ><el-icon><Setting /></el-icon>讨论核心与反馈</template
+          >
+          <el-menu-item v-for="api in apiCategories[5].apis" :key="api.url">
+            <el-icon><Setting /></el-icon> {{ api.name }}
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
-
-    <!-- 主要内容 -->
     <el-container>
       <el-header>
         <div>后台管理面板</div>
@@ -79,10 +84,10 @@ import {
   UserFilled,
   ChatDotRound,
   Cpu,
+  Setting,
 } from "@element-plus/icons-vue";
-import ApiButton from "../components/ApiButton.vue"; // ✅ 引入 API 按钮组件
+import ApiButton from "../components/ApiButton.vue";
 
-// API 分类数据
 const apiCategories = ref([
   {
     category: "用户管理 API",
@@ -137,15 +142,34 @@ const apiCategories = ref([
       },
     ],
   },
+  {
+    category: "讨论核心与反馈 API",
+    apis: [
+      {
+        name: "获取讨论核心",
+        url: "http://localhost:8000/api/discussion_core",
+      },
+      {
+        name: "获取讨论反馈",
+        url: "http://localhost:8000/api/engagement_feedback",
+      },
+      {
+        name: "获取讨论见解",
+        url: "http://localhost:8000/api/discussion_insights",
+      },
+      {
+        name: "获取讨论术语",
+        url: "http://localhost:8000/api/discussion_terms",
+      },
+    ],
+  },
 ]);
 </script>
 
 <style scoped>
-/* 页面布局 */
 .el-container {
   height: 100vh;
 }
-
 .el-header {
   background: #f5f7fa;
   padding: 20px;
@@ -153,17 +177,12 @@ const apiCategories = ref([
   font-weight: bold;
   text-align: center;
 }
-
 .el-main {
   padding: 20px;
 }
-
-/* 卡片样式 */
 .dashboard-card {
   padding: 20px;
 }
-
-/* API 按钮区域 */
 .api-buttons {
   display: flex;
   flex-wrap: wrap;
