@@ -5,7 +5,7 @@
       v-model="selectedUser"
       placeholder="选择用户"
       class="user-select"
-      size="default"
+      size="large"
     >
       <el-option
         v-for="(name, userId) in users"
@@ -18,15 +18,16 @@
     <!-- 消息输入框 -->
     <el-input
       v-model="message"
-      placeholder="输入消息..."
+      placeholder=" Please input your message..."
       @keyup.enter="handleSend"
       class="message-input"
-      size="default"
+      size="large"
     />
+
     <!-- 发送按钮 -->
-    <el-button type="primary" @click="handleSend" size="default"
-      >发送</el-button
-    >
+    <el-button type="primary" @click="handleSend" size="large" class="send-btn">
+      Send
+    </el-button>
   </div>
 </template>
 
@@ -36,7 +37,7 @@ import { ref, watch } from "vue";
 const props = defineProps({
   users: {
     type: Object,
-    default: () => ({}), // ✅ 确保 users 有默认值，避免 Vue 警告
+    default: () => ({}),
   },
   groupId: String,
 });
@@ -69,28 +70,46 @@ const handleSend = () => {
 </script>
 
 <style scoped>
+/* 🔹 输入框容器 */
 .input-container {
   display: flex;
   align-items: center;
-  padding: 10px;
+  padding: 12px 16px;
   background: #fff;
-  justify-content: space-between;
+  border-top: 1px solid #e0e0e0;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.05);
+  border-radius: 0 0 12px 12px;
 }
 
+/* 🔹 用户选择框 */
 .user-select {
-  width: 120px;
-  margin-right: 10px;
+  width: 140px;
+  margin-right: 12px;
 }
 
+/* 🔹 消息输入框 */
 .message-input {
   flex: 1;
-  margin-right: 10px;
+  border-radius: 8px;
+  transition: all 0.3s ease-in-out;
 }
 
-.el-button {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.message-input:focus-within {
+  box-shadow: 0 0 6px rgba(64, 158, 255, 0.6);
+}
+
+/* 🔹 发送按钮 */
+.send-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 8px;
+  background: linear-gradient(to right, #409eff, #187bcd);
+  transition: all 0.3s ease-in-out;
+  margin-left: 12px;
+}
+
+.send-btn:hover {
+  background: linear-gradient(to right, #5aafff, #1b89e5);
 }
 </style>

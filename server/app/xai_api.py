@@ -1,5 +1,6 @@
 import os
-from openai import OpenAI  # ✅ 正确导入新版 SDK
+import json
+from openai import OpenAI  
 from dotenv import load_dotenv
 
 # ✅ 加载 .env 配置
@@ -15,26 +16,41 @@ client = OpenAI(
     base_url=XAI_API_BASE,
 )
 
-def generate_ai_response(prompt: str, model: str = "grok-2-latest"):
+# ✅ 获取 `prompt.json` 的正确路径
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # 获取当前 `xai_api.py` 所在的目录
+PROMPT_PATH = os.path.join(BASE_DIR, "prompt.json")  # 生成 `prompt.json` 的完整路径
+
+# ✅ 读取 JSON 配置，确保文件路径正确
+try:
+    with open(PROMPT_PATH, "r", encoding="utf-8") as f:
+        prompt_config = json.load(f)
+except FileNotFoundError:
+    print(f"❌ 错误：未找到 `prompt.json` 文件，检查路径是否正确：{PROMPT_PATH}")
+    prompt_config = {}  # 避免后续 `KeyError`，但会导致 API 无法正确运行
+
+def generate_ai_response(prompt: str, prompt_type: str = "real_time_summary", model: str = "grok-2-latest"):
     """
-    发送请求到 xAI API，生成 AI 见解
+    发送请求到 xAI API，基于 prompt_type 选择不同的提示词 (prompt)
     """
+    if prompt_type not in prompt_config:
+        return f"❌ 未找到 '{prompt_type}' 对应的 prompt，请检查 `prompt.json`。"
+
     try:
+        # ✅ 读取对应类型的 prompt
+        prompt_data = prompt_config[prompt_type]
+        max_words = prompt_data["max_words"]
+        system_prompt = prompt_data["system_prompt"].replace("{max_words}", str(max_words))
+
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "你是一个智能助手，帮助用户理解讨论内容并生成见解。"},
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"请在 {max_words} 词以内总结以下内容：\n\n{prompt}"},
             ],
         )
-        ai_text = response.choices[0].message.content
-        print(f"✅ xAI API 响应: {ai_text}")  # ✅ 打印 AI 生成的内容
+        ai_text = response.choices[0].message.content.strip()
+        print(f"✅ xAI API 响应:\n{ai_text}")  # ✅ 打印 AI 生成的内容
         return ai_text
     except Exception as e:
         print(f"❌ xAI API 请求失败: {e}")
         return "AI 生成失败，请稍后再试。"
-
-# ✅ **测试 AI 响应**
-if __name__ == "__main__":
-    test_prompt = "请总结以下对话的关键讨论点。"
-    print(generate_ai_response(test_prompt))

@@ -1,41 +1,54 @@
 <template>
   <el-container class="chat-container">
-    <!-- 侧边栏：小组选择 -->
-    <el-aside width="250px">
-      <Sidebar @select-group="selectGroup" />
-    </el-aside>
+    <!-- 📌 头部优化 -->
+    <el-header class="chat-header">
+      <!-- ✅ 小组选择器 -->
+      <el-select
+        v-model="selectedGroupId"
+        class="group-select"
+        popper-class="custom-dropdown"
+        @change="selectGroup"
+      >
+        <el-option
+          v-for="group in groups"
+          :key="group.id"
+          :label="group.name"
+          :value="group.id"
+        />
+      </el-select>
 
-    <!-- 主要内容 -->
-    <el-container>
-      <!-- 头部 -->
-      <el-header class="chat-header">
-        <div>聊天室 - 当前小组: {{ selectedGroupName }}</div>
-      </el-header>
+      <!-- ✅ 标题 -->
+      <div class="header-title">
+        {{ selectedSessionTitle || "No Active Session" }}
+      </div>
+    </el-header>
 
-      <!-- 主体内容 -->
-      <el-container class="main-content">
-        <!-- 聊天窗口 -->
-        <el-main class="chat-window">
-          <ChatWindow
-            :messages="messages"
-            :users="users"
-            :aiBots="aiBots"
-            :groupId="selectedGroupId"
-          />
-          <MessageInput
-            :users="filteredUsers"
-            :groupId="selectedGroupId"
-            @send-message="sendMessage"
-          />
-        </el-main>
+    <!-- 📌 主体 -->
+    <el-container class="main-content">
+      <!-- 📌 左侧议程 -->
+      <el-aside class="agenda-panel">
+        <AgendaDisplay :agendas="chatAgendas" />
+      </el-aside>
 
-        <!-- 右侧功能区域 -->
-        <el-aside width="500px" class="chat-sidebar">
-          <AgendaDisplay :agendas="chatAgendas" />
-          <InsightsPanel :insights="discussionInsights" />
-          <AgendaAdjust :currentAgenda="chatAgendas[0]" />
-        </el-aside>
-      </el-container>
+      <!-- ✅ 聊天窗口 & AI 见解 -->
+      <el-main class="chat-area">
+        <ChatWindow
+          :messages="messages"
+          :users="users"
+          :aiBots="aiBots"
+          :groupId="selectedGroupId"
+        />
+        <MessageInput
+          :users="filteredUsers"
+          :groupId="selectedGroupId"
+          @send-message="sendMessage"
+        />
+      </el-main>
+
+      <!-- ✅ AI 讨论见解 -->
+      <el-aside class="insights-panel">
+        <InsightsPanel :insights="discussionInsights" />
+      </el-aside>
     </el-container>
   </el-container>
 </template>
@@ -43,12 +56,10 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import axios from "axios";
-import Sidebar from "../components/Sidebar.vue";
 import ChatWindow from "../components/ChatWindow.vue";
 import MessageInput from "../components/MessageInput.vue";
 import AgendaDisplay from "../components/AgendaDisplay.vue";
 import InsightsPanel from "../components/InsightsPanel.vue";
-import AgendaAdjust from "../public_device/AgendaAdjust.vue";
 import {
   createWebSocket,
   sendMessage as sendWebSocketMessage,
@@ -63,6 +74,8 @@ const chatAgendas = ref([]);
 const discussionInsights = ref([]);
 const selectedGroupName = ref("");
 const selectedGroupId = ref(null);
+const selectedSessionId = ref(null); // ✅ 存储当前 Session ID
+const selectedSessionTitle = ref("");
 const groupMembers = ref([]);
 const groups = ref([]);
 const aiBots = ref([]); // ✅ 避免 undefined 访问错误
@@ -80,12 +93,18 @@ const fetchGroups = async () => {
   }
 };
 
+// ✅ **监听小组变化，自动更新数据**
+watch(selectedGroupId, async (newGroupId) => {
+  if (newGroupId) {
+    fetchSessionAndData(newGroupId);
+  }
+});
+
 // ✅ 在页面加载时获取所有 AI 机器人
 const fetchAllAiBots = async () => {
   try {
     const response = await axios.get("http://localhost:8000/api/ai_bots");
     aiBots.value = response.data; // ✅ 存储所有机器人数据
-    console.log("AIbot", aiBots);
   } catch (error) {
     console.error("获取 AI 机器人失败:", error);
   }
@@ -139,12 +158,30 @@ const fetchChatHistory = async (groupId) => {
   }
 };
 
-// ✅ **获取议程**
-const fetchChatAgendas = async (groupId) => {
-  if (!groupId) return;
+// ✅ **获取当前小组的最新 Session，并获取该 Session 相关数据**
+const fetchSessionAndData = async (groupId) => {
   try {
     const response = await axios.get(
-      `http://localhost:8000/api/chat/agenda/${groupId}`
+      `http://localhost:8000/api/sessions/${groupId}`
+    );
+
+    console.log("fetchSessionAndData", response);
+    selectedSessionId.value = response.data.id; // ✅ 记录当前 Session ID
+    selectedSessionTitle.value = response.data.session_title;
+
+    fetchChatData(groupId);
+    fetchChatAgendas(selectedSessionId.value); // ✅ 用 session_id 获取议程
+  } catch (error) {
+    console.error("获取小组当前 Session 失败:", error);
+  }
+};
+
+// ✅ **获取议程**
+const fetchChatAgendas = async (sessionId) => {
+  if (!sessionId) return;
+  try {
+    const response = await axios.get(
+      `http://localhost:8000/api/chat/agenda/session/${sessionId}`
     );
     chatAgendas.value = response.data;
   } catch (error) {
@@ -262,7 +299,6 @@ const fetchChatData = async (groupId) => {
   await fetchUsers();
   await fetchGroupMembers(groupId);
   await fetchChatHistory(groupId);
-  await fetchChatAgendas(groupId);
   await fetchDiscussionInsights(groupId);
   initWebSocket(groupId);
 };
@@ -270,6 +306,11 @@ const fetchChatData = async (groupId) => {
 // ✅ **监听小组变化，自动更新数据**
 watch(selectedGroupId, async (newGroupId) => {
   if (newGroupId) {
+    // ✅ 更新聊天室标题
+    selectedGroupName.value =
+      groups.value.find((group) => group.id === newGroupId)?.name || "未知小组";
+
+    // ✅ 更新聊天数据
     fetchChatData(newGroupId);
   }
 });
@@ -282,83 +323,132 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 📌 整体布局 */
 .chat-container {
   height: 100vh;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  background: #f5f7fa;
 }
 
+/* 📌 头部样式 */
 .chat-header {
-  background: #409eff;
+  background: linear-gradient(135deg, #409eff, #2878ff);
   color: white;
-  padding: 20px;
-  font-size: 24px;
+  padding: 16px 20px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 📌 小组选择器 */
+.group-select {
+  width: 220px;
+  border-radius: 8px;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transition: background 0.3s ease;
+}
+
+/* ✅ 下拉菜单优化 */
+.custom-dropdown {
+  border-radius: 10px;
+  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 📌 标题 */
+.header-title {
+  flex-grow: 1;
   text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.message-input {
-  padding: 10px;
+/* 📌 议程区域 */
+.agenda-display {
+  width: 96%;
+  padding: 15px;
+  padding-left: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
 }
 
+/* 📌 议程标题 */
+.agenda-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.agenda-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2878ff;
+}
+
+/* 📌 议程列表 - 横向滚动 */
+.agenda-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  justify-content: space-between;
+}
+
+/* 📌 议程项 */
+.agenda-item {
+  flex: 1 1 calc(33.333% - 10px);
+  min-width: 250px;
+  max-width: 400px;
+  padding: 15px;
+  border-radius: 10px;
+  background: #f8f9fa;
+  transition: background 0.3s ease;
+}
+
+.agenda-item:hover {
+  background: #eef5ff;
+}
+
+/* 📌 主内容区域 */
 .main-content {
   display: flex;
   flex-direction: row;
   flex: 1;
-}
-
-.el-main {
-  padding: 0 !important;
-  margin: 0 !important;
-  height: calc(100vh - 60px); /* 确保高度一致 */
-  overflow: hidden; /* 避免溢出 */
-}
-
-.chat-window {
   padding: 20px;
-  background-color: #fff;
+  margin-top: 10px; /* 确保议程区域有足够的空间 */
+}
+
+/* 📌 聊天区域 */
+.chat-area {
+  flex: 2.5;
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+  box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
+  min-height: 400px; /* 确保聊天窗口不会因为议程太长而变得太小 */
+}
+
+/* 📌 AI 见解面板 */
+.insights-panel {
   flex: 1;
-  overflow-y: auto;
-}
-
-.chat-sidebar {
   padding: 15px;
-  background-color: #f4f4f4;
-  height: 100%;
-  overflow-y: auto;
-  border-left: 1px solid #ddd;
+  background: #f9f9f9;
+  border-radius: 10px;
+  box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.08);
+  margin-left: 15px;
 }
-
-.agenda-card,
-.summary-card,
-.recent-summary-card {
-  margin-bottom: 15px;
-  padding: 15px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.agenda-card h3,
-.summary-card h3,
-.recent-summary-card h3 {
-  font-size: 18px;
-  color: #409eff;
-  margin: 0;
-}
-
-.agenda-card p,
-.summary-card p,
-.recent-summary-card p {
-  font-size: 14px;
-  color: #333;
-}
-
-.el-menu-item {
-  color: white;
-  font-size: 16px;
-}
-
-.el-menu-item:hover {
-  background-color: #2980b9;
+</style>
+<style>
+.el-card__body {
+  padding-top: 0px !important;
 }
 </style>

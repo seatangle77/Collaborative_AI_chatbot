@@ -101,19 +101,61 @@ async def send_chat_message(payload: ChatMessage):
 
     return inserted_data
 
+
+# ========== 📌 讨论会话 API ==========
+
+@router.get("/api/sessions/{group_id}")
+async def get_current_session(group_id: str):
+    """
+    获取指定小组的当前活跃 Session
+
+    参数:
+        - group_id (str): 讨论组 ID
+
+    返回:
+        - 该小组最新的 session 信息（如果有）
+    """
+    sessions = (
+        supabase_client.table("chat_sessions")
+        .select("*")
+        .eq("group_id", group_id)
+        .order("created_at", desc=True)  # ✅ 语法一致性
+        .limit(1)  # 只获取最新的 session
+        .execute()
+        .data
+    )
+
+    if not sessions:
+        raise HTTPException(status_code=404, detail="未找到该小组的活跃 session")
+
+    return sessions[0]
+
 # ========== 📌 聊天议程 API ==========
-@router.get("/api/chat/agenda/{group_id}")
-async def get_chat_agenda(group_id: str):
-    return supabase_client.table("chat_agendas").select("*").eq("group_id", group_id).execute().data
 
-@router.post("/api/chat/agenda/{group_id}")
-async def update_chat_agenda(group_id: str, agenda_data: dict):
-    updated_agenda = supabase_client.table("chat_agendas").upsert(agenda_data).execute().data
+@router.get("/api/chat/agenda/session/{session_id}")
+async def get_agenda_by_session(session_id: str):
+    """
+    获取指定 session 关联的所有议程 (chat_agendas)
 
-    if updated_agenda:
-        await push_agenda_update(group_id, updated_agenda)  # 发送 WebSocket 消息
+    参数:
+        - session_id (str): 讨论会话 ID
 
-    return updated_agenda
+    返回:
+        - 该 session 相关的议程列表
+    """
+    agendas = (
+        supabase_client.table("chat_agendas")
+        .select("*")
+        .eq("session_id", session_id)
+        .order("created_at")  # ✅ 这里默认就是升序，不需要 `asc=True`
+        .execute()
+        .data
+    )
+
+    if not agendas:
+        raise HTTPException(status_code=404, detail="未找到该 session 相关的议程")
+
+    return agendas
 
 # ========== 📌 AI 讨论见解 API ==========
 @router.get("/api/discussion/insights/{group_id}")
