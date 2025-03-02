@@ -4,18 +4,18 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from app.database import supabase_client
 from app.xai_api import generate_ai_response  # ✅ 导入 xAI 处理逻辑
 from app.websocket_routes import (
     push_chat_message, 
-    push_agenda_update, 
-    push_ai_analysis_update, 
-    push_discussion_terms_update
+    push_ai_summary  # ✅ 确保 WebSocket 触发 AI 会议总结
 )
 
 load_dotenv()
 
 router = APIRouter()
+
 
 # ========== 📌 用户管理 API ==========
 @router.get("/api/users/")
@@ -84,23 +84,29 @@ async def get_chat_history(group_id: str):
 
 class ChatMessage(BaseModel):
     group_id: str
-    user_id: Optional[str] = None  # 用户 ID（如果是 AI 机器人，可能为空）
-    chatbot_id: Optional[str] = None  # AI 机器人 ID
+    user_id: Optional[str] = None
+    chatbot_id: Optional[str] = None
     message: str
-    role: str = Field(default="user")  # "user" 或 "bot"
+    role: str = Field(default="user")
+    message_type: str = Field(default="text")
+    sender_type: str = Field(default="user")
+    speaking_duration: Optional[int] = 0
+    session_id: Optional[str] = None
 
 @router.post("/api/chat/send")
 async def send_chat_message(payload: ChatMessage):
+    """
+    发送聊天消息，同时存入数据库并通过 WebSocket 推送
+    """
     data = payload.dict()
-    
-    # 插入数据库
+
+    # ✅ **插入数据库**
     inserted_data = supabase_client.table("chat_messages").insert(data).execute().data
 
     if inserted_data:
-        await push_chat_message(payload.group_id, inserted_data[0])  # 发送 WebSocket 消息
+        await push_chat_message(payload.group_id, inserted_data[0])  # ✅ WebSocket 推送消息
 
     return inserted_data
-
 
 # ========== 📌 讨论会话 API ==========
 
@@ -157,46 +163,52 @@ async def get_agenda_by_session(session_id: str):
 
     return agendas
 
-# ========== 📌 AI 讨论见解 API ==========
-@router.get("/api/discussion/insights/{group_id}")
-async def get_discussion_insights(group_id: str):
-    return supabase_client.table("discussion_insights").select("*").eq("group_id", group_id).execute().data
-
-@router.post("/api/discussion/insights/{group_id}")
-async def update_discussion_insights(group_id: str, insights_data: dict):
-    updated_insights = supabase_client.table("discussion_insights").upsert(insights_data).execute().data
-
-    if updated_insights:
-        await push_ai_analysis_update(group_id, updated_insights)  # 发送 WebSocket 消息
-
-    return updated_insights
-
-# ========== 📌 讨论术语 API ==========
-@router.get("/api/discussion/terms/{group_id}")
-async def get_discussion_terms(group_id: str):
-    return supabase_client.table("discussion_terms").select("*").eq("group_id", group_id).execute().data
-
-@router.post("/api/discussion/terms/{group_id}")
-async def update_discussion_terms(group_id: str, terms_data: dict):
-    updated_terms = supabase_client.table("discussion_terms").upsert(terms_data).execute().data
-
-    if updated_terms:
-        await push_discussion_terms_update(group_id, updated_terms)  # 发送 WebSocket 消息
-
-    return updated_terms
-
-
-#  ========== ✅AI 生成见解接口  ========== 
-@router.get("/api/discussion/insights/{group_id}")
-async def get_discussion_insights(group_id: str):
+# ========== 📌 AI 会议总结 API ==========
+@router.get("/api/chat_summaries/{group_id}")
+async def get_chat_summaries(group_id: str):
     """
-    获取指定小组的历史 AI 见解
+    获取指定小组的 AI 会议总结
     """
     return (
-        supabase_client.table("discussion_insights")
+        supabase_client.table("chat_summaries")
         .select("*")
         .eq("group_id", group_id)
-        .order("created_at", desc=True)
+        .order("summary_time", desc=True)
         .execute()
         .data
+    )
+
+@router.post("/api/chat_summaries/{group_id}")
+async def trigger_ai_summary(group_id: str):
+    """
+    手动触发 AI 会议总结
+    """
+    await push_ai_summary(group_id)
+    return {"message": "AI 会议总结已触发"}
+
+@router.get("/api/chat_summaries/session/{session_id}")
+async def get_chat_summaries_by_session(session_id: str):
+    """
+    获取特定 session 的 AI 总结
+    """
+    summaries = (
+        supabase_client.table("chat_summaries")
+        .select("*")
+        .eq("session_id", session_id)
+        .order("summary_time", desc=True)
+        .execute()
+        .data
+    )
+
+    if not summaries:
+        return JSONResponse(
+            content=[], 
+            status_code=200, 
+            headers={"Access-Control-Allow-Origin": "*"}  # ✅ 允许跨域
+        )
+
+    return JSONResponse(
+        content=summaries, 
+        status_code=200, 
+        headers={"Access-Control-Allow-Origin": "*"}  # ✅ 允许跨域
     )

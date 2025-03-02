@@ -30,7 +30,7 @@
         <AgendaDisplay :agendas="chatAgendas" />
       </el-aside>
 
-      <!-- ✅ 聊天窗口 & AI 见解 -->
+      <!-- ✅ 聊天窗口 & AI 实时总结 -->
       <el-main class="chat-area">
         <ChatWindow
           :messages="messages"
@@ -45,9 +45,12 @@
         />
       </el-main>
 
-      <!-- ✅ AI 讨论见解 -->
-      <el-aside class="insights-panel">
-        <InsightsPanel :insights="discussionInsights" />
+      <!-- ✅ AI 实时会议总结 -->
+      <el-aside class="realtime-summary">
+        <RealTimeSummary
+          :discussion_summary="chatSummaries"
+          :groupId="selectedGroupId"
+        />
       </el-aside>
     </el-container>
   </el-container>
@@ -59,7 +62,7 @@ import axios from "axios";
 import ChatWindow from "../components/ChatWindow.vue";
 import MessageInput from "../components/MessageInput.vue";
 import AgendaDisplay from "../components/AgendaDisplay.vue";
-import InsightsPanel from "../components/InsightsPanel.vue";
+import RealTimeSummary from "../components/RealTimeSummary.vue";
 import {
   createWebSocket,
   sendMessage as sendWebSocketMessage,
@@ -71,7 +74,7 @@ import {
 const messages = ref([]);
 const users = ref({});
 const chatAgendas = ref([]);
-const discussionInsights = ref([]);
+const chatSummaries = ref([]); // ✅ 改名 `chatSummaries`
 const selectedGroupName = ref("");
 const selectedGroupId = ref(null);
 const selectedSessionId = ref(null); // ✅ 存储当前 Session ID
@@ -171,6 +174,7 @@ const fetchSessionAndData = async (groupId) => {
 
     fetchChatData(groupId);
     fetchChatAgendas(selectedSessionId.value); // ✅ 用 session_id 获取议程
+    fetchChatSummariesBySession(selectedSessionId.value); // ✅ 获取 AI 会议总结
   } catch (error) {
     console.error("获取小组当前 Session 失败:", error);
   }
@@ -189,19 +193,6 @@ const fetchChatAgendas = async (sessionId) => {
   }
 };
 
-// ✅ **获取讨论见解**
-const fetchDiscussionInsights = async (groupId) => {
-  if (!groupId) return;
-  try {
-    const response = await axios.get(
-      `http://localhost:8000/api/discussion/insights/${groupId}`
-    );
-    discussionInsights.value = response.data;
-  } catch (error) {
-    console.error("获取讨论见解失败:", error);
-  }
-};
-
 // ✅ **获取所有用户**
 const fetchUsers = async () => {
   try {
@@ -215,20 +206,22 @@ const fetchUsers = async () => {
   }
 };
 
-// ✅ **发送消息**
+// ✅ **发送消息（字段补全）**
 const sendMessage = async (payload) => {
   try {
     const response = await axios.post("http://localhost:8000/api/chat/send", {
       group_id: payload.group_id,
+      session_id: selectedSessionId.value, // ✅ 关联 session
       user_id: payload.user_id,
+      chatbot_id: payload.chatbot_id || null,
       message: payload.message,
-      role: "user",
+      role: payload.role || "user",
+      message_type: payload.message_type || "text",
+      sender_type: payload.sender_type || "user",
+      speaking_duration: payload.speaking_duration || 0,
     });
 
     console.log("📤 发送消息到数据库:", response.data);
-
-    // ❌ **不需要再手动推送 WebSocket，数据库插入后 WebSocket 会自动触发**
-    // sendWebSocketMessage(payload.group_id, response.data);
   } catch (error) {
     console.error("❌ 发送消息失败:", error);
   }
@@ -247,35 +240,22 @@ const initWebSocket = (groupId) => {
       if (typeof data === "string") {
         parsedData = JSON.parse(data);
       } else {
-        parsedData = data; // 直接使用对象
+        parsedData = data;
       }
 
-      console.log("✅ 解析后数据:", parsedData);
-
-      // 🔹 统一处理 WebSocket 消息类型
+      // ✅ **处理 WebSocket 消息类型**
       if (parsedData.message) {
         let newMessage = parsedData.message;
-
         if (Array.isArray(newMessage)) {
-          newMessage = newMessage[0]; // 只取数组的第一条消息
+          newMessage = newMessage[0];
         }
-
         messages.value.push(newMessage);
         scrollToBottom();
       }
-      if (parsedData.agenda) {
-        chatAgendas.value = parsedData.agenda;
-      }
-      if (parsedData.ai_analysis) {
-        discussionInsights.value = parsedData.ai_analysis;
-      }
 
-      // ✅ **处理 AI 见解**
-      if (parsedData.type === "ai_insight") {
-        console.log("🤖 AI 见解收到:", parsedData.insight_text);
-        discussionInsights.value.push({
-          insight_text: parsedData.insight_text,
-        });
+      if (parsedData.type === "ai_summary") {
+        console.log("🤖 AI 会议总结收到:", parsedData.summary_text);
+        chatSummaries.value.push({ summary_text: parsedData.summary_text });
       }
     } catch (error) {
       console.error("❌ WebSocket 消息解析错误:", error, "原始数据:", data);
@@ -299,7 +279,6 @@ const fetchChatData = async (groupId) => {
   await fetchUsers();
   await fetchGroupMembers(groupId);
   await fetchChatHistory(groupId);
-  await fetchDiscussionInsights(groupId);
   initWebSocket(groupId);
 };
 
@@ -314,6 +293,32 @@ watch(selectedGroupId, async (newGroupId) => {
     fetchChatData(newGroupId);
   }
 });
+
+// ✅ **获取 AI 会议总结**
+const fetchChatSummaries = async (groupId) => {
+  if (!groupId) return;
+  try {
+    const response = await axios.get(
+      `http://localhost:8000/api/chat_summaries/${groupId}`
+    );
+    chatSummaries.value = response.data.slice(0, 1); // ✅ 只存储最新一条总结
+  } catch (error) {
+    console.error("获取 AI 会议总结失败:", error);
+  }
+};
+
+// ✅ **根据 sessionId 获取 AI 会议总结**
+const fetchChatSummariesBySession = async (sessionId) => {
+  if (!sessionId) return;
+  try {
+    const response = await axios.get(
+      `http://localhost:8000/api/chat_summaries/session/${sessionId}`
+    );
+    chatSummaries.value = [response.data]; // ✅ 只存储最新的一条
+  } catch (error) {
+    console.error("获取 AI 会议总结失败:", error);
+  }
+};
 
 // ✅ **页面加载时获取小组信息**
 onMounted(() => {
@@ -437,8 +442,8 @@ onMounted(() => {
   min-height: 400px; /* 确保聊天窗口不会因为议程太长而变得太小 */
 }
 
-/* 📌 AI 见解面板 */
-.insights-panel {
+/* 📌 AI 实时总结面板 */
+.realtime-summary {
   flex: 1;
   padding: 15px;
   background: #f9f9f9;
