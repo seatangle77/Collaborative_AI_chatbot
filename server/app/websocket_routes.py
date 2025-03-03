@@ -1,6 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.database import supabase_client
-from app.xai_api import generate_ai_response
+from app.ai_provider import generate_response  # ✅ 统一管理 AI API 提供商
 import json
 import asyncio
 
@@ -28,12 +28,21 @@ async def websocket_endpoint(websocket: WebSocket, group_id: str):
     try:
         while True:
             data = await websocket.receive_text()
+            print(f"📩 收到 WebSocket 数据: {data}")  # ✅ 添加日志，查看原始数据
+
             received_data = json.loads(data)
 
             # ✅ 处理前端触发 AI 总结请求
             if received_data.get("type") == "trigger_ai_summary":
-                print(f"🚀 触发 AI 总结: group_id={group_id}")
-                await push_ai_summary(group_id)
+                ai_provider = received_data.get("aiProvider", "xai")  # ✅ 确保解析 aiProvider
+                print(f"🚀 触发 AI 总结: group_id={group_id}, 使用 API: {ai_provider}")
+
+                if not ai_provider:  # ✅ 变量名修正
+                    print("❌ 错误: AI 提供商 (`ai_provider`) 为空，无法生成总结")
+                    return
+
+                print(f"🚀 触发 AI 总结: group_id={group_id}，使用 API: {ai_provider}")
+                await push_ai_summary(group_id, ai_provider)
                 message_count[group_id] = 0  
                 continue  
 
@@ -45,8 +54,9 @@ async def websocket_endpoint(websocket: WebSocket, group_id: str):
 
             # ✅ **每 3 条消息触发 AI 生成**
             if message_count[group_id] >= 3:
-                print(f"🚀 触发 AI 实时总结: group_id={group_id}")
-                await push_ai_summary(group_id)
+                api_provider = os.getenv("DEFAULT_AI_PROVIDER", "xai")  # ✅ 默认值改为 `.env`
+                print(f"🚀 触发 AI 实时总结: group_id={group_id}，使用 API: {api_provider}")
+                await push_ai_summary(group_id, api_provider)
                 message_count[group_id] = 0  # ✅ 计数归零
 
     except WebSocketDisconnect:
@@ -86,9 +96,13 @@ async def push_chat_message(group_id, message):
 
 
 # ✅ **推送 AI 会议总结**
-async def push_ai_summary(group_id):
-    """触发 AI 生成会议总结"""
-    print(f"🚀 生成 AI 总结: group_id={group_id}")
+async def push_ai_summary(group_id: str, api_provider: str):
+    """触发 AI 生成会议总结，使用前端指定的 AI 提供商"""
+    if not api_provider:
+        print("❌ `api_provider` 为空，无法生成 AI 总结")
+        return
+
+    print(f"🚀 生成 AI 总结: group_id={group_id}，使用 API: {api_provider}")
 
     # ✅ 获取当前 session
     session = (
@@ -127,7 +141,8 @@ async def push_ai_summary(group_id):
     previous_summary = last_ai_summary.get(group_id, "")
 
     ai_prompt = f"历史总结:\n{previous_summary}\n\n最新聊天:\n{conversation}"
-    ai_response = generate_ai_response(ai_prompt, "real_time_summary")
+    
+    ai_response = generate_response(ai_prompt, "real_time_summary", "default", api_provider)
 
     if not ai_response or ai_response.strip() == "":
         print("❌ AI 生成失败，跳过入库")
@@ -147,7 +162,11 @@ async def push_ai_summary(group_id):
     supabase_client.table("chat_summaries").insert(summary_entry).execute()
 
     if group_id in connected_clients:
-        summary_payload = json.dumps({"type": "ai_summary", "summary_text": ai_response})
+        summary_payload = json.dumps({
+            "type": "ai_summary",
+            "summary_text": ai_response,
+            "api_provider": api_provider  # ✅ 返回使用的 AI 供应商
+        })
         for client in connected_clients[group_id]:
             await client.send_text(summary_payload)
 

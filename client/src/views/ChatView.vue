@@ -21,6 +21,17 @@
       <div class="header-title">
         {{ selectedSessionTitle || "No Active Session" }}
       </div>
+
+      <!-- ✅ AI 供应商选择器 -->
+      <el-select
+        v-model="selectedAiProvider"
+        class="ai-provider-select"
+        popper-class="custom-dropdown"
+        @change="changeAiProvider"
+      >
+        <el-option label="xAI" value="xai" />
+        <el-option label="HKUST GZ" value="hkust_gz" />
+      </el-select>
     </el-header>
 
     <!-- 📌 主体 -->
@@ -68,6 +79,7 @@ import {
   sendMessage as sendWebSocketMessage,
   onMessageReceived,
   closeWebSocket,
+  changeAiProviderAndTriggerSummary as triggerWebSocketAiSummary,
 } from "../services/websocketService";
 
 // ✅ **存储状态**
@@ -81,7 +93,15 @@ const selectedSessionId = ref(null); // ✅ 存储当前 Session ID
 const selectedSessionTitle = ref("");
 const groupMembers = ref([]);
 const groups = ref([]);
-const aiBots = ref([]); // ✅ 避免 undefined 访问错误
+const aiBots = ref([]);
+const selectedAiProvider = ref("xai"); // ✅ 默认使用 xAI
+
+// ✅ **切换 AI 供应商时自动触发 AI 会议总结**
+const changeAiProvider = () => {
+  if (!selectedGroupId.value) return;
+  console.log(`🔄 AI 供应商切换: ${selectedAiProvider.value}，触发 AI 总结`);
+  triggerWebSocketAiSummary(selectedGroupId.value, selectedAiProvider.value);
+};
 
 // ✅ **获取所有小组**
 const fetchGroups = async () => {
@@ -294,19 +314,6 @@ watch(selectedGroupId, async (newGroupId) => {
   }
 });
 
-// ✅ **获取 AI 会议总结**
-const fetchChatSummaries = async (groupId) => {
-  if (!groupId) return;
-  try {
-    const response = await axios.get(
-      `http://localhost:8000/api/chat_summaries/${groupId}`
-    );
-    chatSummaries.value = response.data.slice(0, 1); // ✅ 只存储最新一条总结
-  } catch (error) {
-    console.error("获取 AI 会议总结失败:", error);
-  }
-};
-
 // ✅ **根据 sessionId 获取 AI 会议总结**
 const fetchChatSummariesBySession = async (sessionId) => {
   if (!sessionId) return;
@@ -351,6 +358,15 @@ onMounted(() => {
 /* 📌 小组选择器 */
 .group-select {
   width: 220px;
+  border-radius: 8px;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transition: background 0.3s ease;
+}
+
+.ai-provider-select {
+  width: 150px;
   border-radius: 8px;
   font-size: 16px;
   background: rgba(255, 255, 255, 0.2);

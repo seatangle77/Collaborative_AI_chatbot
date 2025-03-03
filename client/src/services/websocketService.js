@@ -69,6 +69,26 @@ export const createWebSocket = (groupId) => {
   };
 };
 
+export const changeAiProviderAndTriggerSummary = (groupId, aiProvider) => {
+  if (!groupId || !aiProvider) {
+    console.error("⚠️ groupId 或 aiProvider 为空，无法触发 AI 会议总结");
+    return;
+  }
+
+  if (!sockets[groupId] || sockets[groupId].readyState !== WebSocket.OPEN) {
+    console.error("⚠️ WebSocket 连接未打开，无法触发 AI 会议总结");
+    return;
+  }
+
+  const payload = JSON.stringify({
+    type: "trigger_ai_summary",
+    aiProvider, // ✅ 传递用户选择的 AI 供应商
+  });
+
+  console.log("📤 发送 AI 会议总结请求:", payload);
+  sockets[groupId].send(payload);
+};
+
 // ✅ **发送消息**
 export const sendMessage = (groupId, message) => {
   if (sockets[groupId] && sockets[groupId].readyState === WebSocket.OPEN) {

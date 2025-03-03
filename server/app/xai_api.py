@@ -41,13 +41,28 @@ def generate_ai_response(prompt: str, prompt_type: str = "real_time_summary", mo
         max_words = prompt_data["max_words"]
         system_prompt = prompt_data["system_prompt"].replace("{max_words}", str(max_words))
 
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
+        # ✅ 构造 API 请求数据
+        api_payload = {
+            "model": "grok-2-latest",
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"请在 {max_words} 词以内总结以下内容：\n\n{prompt}"},
             ],
-        )
+        }
+
+        # ✅ **打印即将发送的 API 请求参数**
+        print("📤 model:")
+        print("📤 发送请求到 xAI API:")
+        print(f"🔗 API 网址: {XAI_API_BASE}")
+        print(f"🔑 API Key: {'✅ 已设置' if XAI_API_KEY else '❌ 未设置'}")
+        print(f"📦 请求 Payload:\n{json.dumps(api_payload, indent=2, ensure_ascii=False)}")
+
+        # ✅ 发送 API 请求
+        response = client.chat.completions.create(**api_payload)
+
+        # ✅ **打印 API 返回结果**
+        print(f"📥 API 响应: {response}")
+
         ai_text = response.choices[0].message.content.strip()
         print(f"✅ xAI API 响应:\n{ai_text}")  # ✅ 打印 AI 生成的内容
         return ai_text
