@@ -1,5 +1,6 @@
 const sockets = {}; // 存储多个 WebSocket 连接
-let messageCounter = {}; // 记录每个 group 的消息计数
+let messageCounterforaiSummary = {}; // 记录每个 group 的 AI 会议总结计数
+let messageCounterforaiGuidance = {}; // 记录每个 group 的 AI 认知引导计数
 
 export const createWebSocket = (groupId) => {
   if (sockets[groupId]) {
@@ -9,7 +10,8 @@ export const createWebSocket = (groupId) => {
 
   const socket = new WebSocket(`ws://localhost:8000/ws/${groupId}`);
   sockets[groupId] = socket;
-  messageCounter[groupId] = 0; // ✅ 初始化计数
+  messageCounterforaiSummary[groupId] = 0; // ✅ 初始化 AI 会议总结计数
+  messageCounterforaiGuidance[groupId] = 0; // ✅ 初始化 AI 认知引导计数
 
   socket.onopen = () => {
     console.log(`✅ WebSocket 连接成功: Group ${groupId}`);
@@ -32,21 +34,39 @@ export const createWebSocket = (groupId) => {
       switch (receivedData.type) {
         case "message":
           console.log("💬 新聊天消息:", receivedData.message);
-          messageCounter[groupId] += 1; // ✅ 计数 +1
+          messageCounterforaiSummary[groupId] += 1; // ✅ 会议总结计数 +1
+          messageCounterforaiGuidance[groupId] += 1; // ✅ 认知引导计数 +1          
           break;
+
         case "ai_summary":
           console.log("🤖 AI 会议总结:", receivedData.summary_text);
-          messageCounter[groupId] = 0; // ✅ AI 触发后重置计数
+          messageCounterforaiSummary[groupId] = 0; // ✅ AI 触发后重置会议总结计数
           break;
+
+        case "ai_guidance":
+          console.log("🤖 AI 认知引导:", receivedData.message);
+          messageCounterforaiGuidance[groupId] = 0; // ✅ AI 触发后重置认知引导计数
+          if (onMessageCallback) {
+            onMessageCallback(receivedData);
+          }
+          break;
+        
         default:
           console.warn("⚠️ 未知类型的 WebSocket 消息:", receivedData);
       }
 
       // **每 3 条消息后触发 AI 总结**
-      if (messageCounter[groupId] >= 3) {
+      if (messageCounterforaiSummary[groupId] >= 3) {
         console.log(`🚀 触发 AI 会议总结: Group ${groupId}`);
         sendMessage(groupId, { type: "trigger_ai_summary" });
-        messageCounter[groupId] = 0; // ✅ 重置计数
+        messageCounterforaiSummary[groupId] = 0; // ✅ 重置计数
+      }
+
+      // **每 5 条消息后触发 AI 认知引导**
+      if (messageCounterforaiGuidance[groupId] >= 5) {
+        console.log(`🚀 触发 AI 认知引导: Group ${groupId}`);
+        sendMessage(groupId, { type: "trigger_ai_guidance" });
+        messageCounterforaiGuidance[groupId] = 0; // ✅ 重置计数
       }
 
       // **通知 Vue 组件更新 UI**
@@ -112,6 +132,6 @@ export const closeWebSocket = (groupId) => {
   if (sockets[groupId]) {
     sockets[groupId].close();
     delete sockets[groupId];
-    delete messageCounter[groupId];
-  }
+    delete messageCounterforaiSummary[groupId];
+    delete messageCounterforaiGuidance[groupId];  }
 };

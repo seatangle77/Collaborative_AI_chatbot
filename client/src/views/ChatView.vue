@@ -272,6 +272,7 @@ const initWebSocket = (groupId) => {
         messages.value.push(newMessage);
         scrollToBottom();
       }
+      console.log("🪐输出每一条消息", parsedData);
 
       if (parsedData.type === "ai_summary") {
         console.log("🤖 AI 会议总结收到:", parsedData.summary_text);

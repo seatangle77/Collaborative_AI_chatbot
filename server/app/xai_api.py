@@ -28,7 +28,7 @@ except FileNotFoundError:
     print(f"❌ 错误：未找到 `prompt.json` 文件，检查路径是否正确：{PROMPT_PATH}")
     prompt_config = {}  # 避免后续 `KeyError`，但会导致 API 无法正确运行
 
-def generate_ai_response(prompt: str, prompt_type: str = "real_time_summary", model: str = "grok-2-latest"):
+def generate_ai_response(main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "grok-2-latest"):
     """
     发送请求到 xAI API，基于 prompt_type 选择不同的提示词 (prompt)
     """
@@ -42,12 +42,22 @@ def generate_ai_response(prompt: str, prompt_type: str = "real_time_summary", mo
         system_prompt = prompt_data["system_prompt"].replace("{max_words}", str(max_words))
 
         # ✅ 构造 API 请求数据
+        messages = [
+            {"role": "system", "content": system_prompt}
+        ]
+
+        # ✅ 如果有历史消息，则插入 `assistant` 角色
+        if history_prompt:
+            messages.append({"role": "assistant", "content": history_prompt})
+
+        # ✅ 添加当前主要任务
+        messages.append({"role": "user", "content": f"请在 {max_words} 词以内总结以下内容：\n\n{main_prompt}"})
+
+        # ✅ 构造 API 请求数据
         api_payload = {
             "model": "grok-2-latest",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"请在 {max_words} 词以内总结以下内容：\n\n{prompt}"},
-            ],
+             "temperature": 0.9,
+            "messages": messages
         }
 
         # ✅ **打印即将发送的 API 请求参数**

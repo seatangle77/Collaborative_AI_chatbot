@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from app.database import supabase_client
-from app.xai_api import generate_ai_response  # ✅ 导入 xAI 处理逻辑
 from app.websocket_routes import (
     push_chat_message, 
     push_ai_summary  # ✅ 确保 WebSocket 触发 AI 会议总结
@@ -92,6 +91,8 @@ class ChatMessage(BaseModel):
     sender_type: str = Field(default="user")
     speaking_duration: Optional[int] = 0
     session_id: Optional[str] = None
+
+# ========== 📌 发送聊天消息 ==========
 
 @router.post("/api/chat/send")
 async def send_chat_message(payload: ChatMessage):

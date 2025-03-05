@@ -2,9 +2,9 @@
   <el-card class="summary-panel">
     <div class="summary-header">
       <span class="summary-title">✨ AI Real-Time Summary</span>
-      <el-tag type="info" class="summary-status" v-if="!parsedSummary"
-        >Processing...</el-tag
-      >
+      <el-tag type="info" class="summary-status" v-if="!parsedSummary">
+        Processing...
+      </el-tag>
     </div>
 
     <!-- 🔹 AI 处理中 -->
@@ -15,19 +15,38 @@
     <!-- 🔹 展示最新 AI 总结 -->
     <div v-if="parsedSummary">
       <p><strong>🔹 Topic: </strong> {{ parsedSummary.current_topic }}</p>
+
       <p><strong>📌 Key Points:</strong></p>
       <ul class="summary-list">
         <li
-          v-for="(point, index) in parsedSummary.key_points.split('。')"
+          v-for="(point, index) in parsedSummary.key_points"
           :key="'point-' + index"
         >
           {{ point }}
         </li>
       </ul>
-      <p v-if="parsedSummary.unresolved_issues">
+
+      <p><strong>💡 Suggestions:</strong></p>
+      <ul class="summary-list">
+        <li
+          v-for="(suggestion, index) in parsedSummary.suggestions"
+          :key="'suggestion-' + index"
+        >
+          {{ suggestion }}
+        </li>
+      </ul>
+
+      <p v-if="parsedSummary.unresolved_issues.length > 0">
         <strong>❓ Unresolved Issues: </strong>
-        {{ parsedSummary.unresolved_issues }}
       </p>
+      <ul class="summary-list">
+        <li
+          v-for="(issue, index) in parsedSummary.unresolved_issues"
+          :key="'issue-' + index"
+        >
+          {{ issue }}
+        </li>
+      </ul>
     </div>
   </el-card>
 </template>
@@ -37,8 +56,8 @@ import { ref, watch, onMounted } from "vue";
 import axios from "axios";
 
 const props = defineProps({
-  discussion_summary: Array, // 通过 REST API 和 WebSocket 获取
-  groupId: String, // ✅ 从 ChatView.vue 传入 groupId
+  discussion_summary: Array,
+  groupId: String,
 });
 
 const parsedSummary = ref(null);
@@ -47,11 +66,25 @@ const parsedSummary = ref(null);
 const parseAiSummary = (insightText) => {
   if (!insightText) return;
   try {
-    const jsonTextMatch = insightText.match(/```json\n([\s\S]*?)\n```/);
-    if (jsonTextMatch) {
-      parsedSummary.value = JSON.parse(jsonTextMatch[1]).summary;
+    let cleanedText = insightText.trim();
+
+    // 🔹 处理 AI 可能返回 ```json\n...\n``` 的情况
+    if (cleanedText.startsWith("```json")) {
+      cleanedText = cleanedText.replace(/^```json\n/, "").replace(/\n```$/, "");
+    }
+
+    const parsedJson = JSON.parse(cleanedText);
+
+    // 🔹 确保字段存在
+    if (parsedJson.summary) {
+      parsedSummary.value = {
+        current_topic: parsedJson.summary.current_topic || "No topic found",
+        key_points: parsedJson.summary.key_points || [],
+        suggestions: parsedJson.summary.suggestions || [],
+        unresolved_issues: parsedJson.summary.unresolved_issues || [],
+      };
     } else {
-      console.warn("⚠️ AI response format incorrect:", insightText);
+      console.warn("⚠️ AI summary format incorrect:", parsedJson);
     }
   } catch (error) {
     console.error("❌ Failed to parse AI JSON response:", error);
@@ -73,6 +106,7 @@ const fetchLatestSummary = async (groupId) => {
   }
 };
 
+// ✅ **监听 WebSocket 或 API 更新**
 watch(
   () => props.discussion_summary,
   (newSummary) => {
@@ -83,46 +117,20 @@ watch(
     }
 
     try {
-      let latestSummary = null;
+      let latestSummary = newSummary[newSummary.length - 1];
 
-      // ✅ 处理数据库返回的数据：newSummary[newSummary.length - 1][0]
-      if (Array.isArray(newSummary[newSummary.length - 1])) {
-        latestSummary = newSummary[newSummary.length - 1][0];
-      } else {
-        // ✅ 处理 WebSocket 返回的数据：newSummary[newSummary.length - 1]
-        latestSummary = newSummary[newSummary.length - 1];
+      // 🔹 处理 REST API 或 WebSocket 的数据格式
+      if (Array.isArray(latestSummary)) {
+        latestSummary = latestSummary[0];
       }
 
-      // ✅ 检查 latestSummary 是否存在
-      if (
-        !latestSummary ||
-        !latestSummary.summary_text ||
-        typeof latestSummary.summary_text !== "string"
-      ) {
-        console.warn(
-          "⚠️ summary_text is empty or not a string:",
-          latestSummary
-        );
+      if (!latestSummary || !latestSummary.summary_text) {
+        console.warn("⚠️ summary_text is empty:", latestSummary);
         parsedSummary.value = null;
         return;
       }
 
-      // ✅ 解析 JSON 格式的 AI 总结
-      const jsonText = latestSummary.summary_text.match(
-        /```json\n([\s\S]*?)\n```/
-      );
-
-      if (!jsonText) {
-        console.warn(
-          "⚠️ AI response format is incorrect:",
-          latestSummary.summary_text
-        );
-        parsedSummary.value = null;
-        return;
-      }
-
-      // ✅ 解析 JSON 并存入 parsedSummary
-      parsedSummary.value = JSON.parse(jsonText[1]).summary;
+      parseAiSummary(latestSummary.summary_text);
     } catch (error) {
       console.error("❌ Failed to parse AI JSON response:", error);
       parsedSummary.value = null;

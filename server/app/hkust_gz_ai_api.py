@@ -21,7 +21,7 @@ except FileNotFoundError:
     print(f"❌ `prompt.json` 文件未找到: {PROMPT_PATH}")
     prompt_config = {}
 
-def generate_ai_response(prompt: str, prompt_type: str = "real_time_summary", model: str = "gpt-4"):
+def generate_ai_response(main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "gpt-4"):
     """
     调用 HKUST GZ AI API 生成 AI 会议总结
     """
@@ -36,17 +36,22 @@ def generate_ai_response(prompt: str, prompt_type: str = "real_time_summary", mo
         max_words = prompt_data["max_words"]
         system_prompt = prompt_data["system_prompt"].replace("{max_words}", str(max_words))
 
-        # ✅ 确保 `messages` 结构与 JS 代码匹配
         messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"请在 {max_words} 词以内总结以下内容：\n\n{prompt}"},
+            {"role": "system", "content": system_prompt}
         ]
+
+        # ✅ 如果有历史消息，则插入 `assistant` 角色
+        if history_prompt:
+            messages.append({"role": "assistant", "content": history_prompt})
+
+        # ✅ 添加当前主要任务
+        messages.append({"role": "user", "content": f"请在 {max_words} 词以内总结以下内容：\n\n{main_prompt}"})
 
         # ✅ 构造请求体
         payload = {
             "model": "gpt-4",  # ✅ 正确写法
             "messages": messages,
-            "temperature": 0.7
+            "temperature": 0.9
         }   
 
         # ✅ API 头部
