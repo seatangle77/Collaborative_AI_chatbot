@@ -36,22 +36,30 @@ def generate_ai_response(main_prompt: str, history_prompt: str = None, prompt_ty
         max_words = prompt_data["max_words"]
         system_prompt = prompt_data["system_prompt"].replace("{max_words}", str(max_words))
 
+        # ✅ 处理不同的 `prompt_type`
+        if prompt_type == "real_time_summary":
+            user_prompt = f"请在 {max_words} 词以内总结以下内容：\n\n{main_prompt}"
+        elif prompt_type == "cognitive_guidance":
+            user_prompt = f"请根据以下讨论内容，判断是否需要引导团队进一步讨论，并提供知识支持：\n\n{main_prompt}"
+        elif prompt_type == "term_explanation":
+            user_prompt = f"请在 {max_words} 词以内解释这个术语：\n\n{main_prompt}"
+        else:
+            return "❌ 不支持的 `prompt_type`"
+
         messages = [
-            {"role": "system", "content": system_prompt}
+            {"role": "system", "content": system_prompt},  
+            {"role": "user", "content": user_prompt},  
         ]
 
-        # ✅ 如果有历史消息，则插入 `assistant` 角色
+        # ✅ 如果有历史消息，则插入 `assistant` 角色（但权重较低）
         if history_prompt:
             messages.append({"role": "assistant", "content": history_prompt})
 
-        # ✅ 添加当前主要任务
-        messages.append({"role": "user", "content": f"请在 {max_words} 词以内总结以下内容：\n\n{main_prompt}"})
-
         # ✅ 构造请求体
         payload = {
-            "model": "gpt-4",  # ✅ 正确写法
+            "model": "gpt-4o",  # ✅ 正确写法
             "messages": messages,
-            "temperature": 0.9
+            "temperature": 1
         }   
 
         # ✅ API 头部

@@ -7,7 +7,7 @@
 </template>
 <script setup>
 import { ref } from "vue";
-import apiService from "@/services/apiService";
+import apiService from "../services/apiService";
 const reviewText = ref("");
 const fetchReview = async () => {
   reviewText.value = await apiService.getReview();

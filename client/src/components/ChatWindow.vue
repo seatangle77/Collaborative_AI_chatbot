@@ -1,5 +1,9 @@
 <template>
-  <el-scrollbar ref="chatWindow" class="chat-window">
+  <el-scrollbar
+    ref="chatWindow"
+    class="chat-window"
+    @mouseup="handleTextSelection"
+  >
     <div class="chat-list">
       <div
         v-for="msg in messages"
@@ -13,16 +17,92 @@
       </div>
     </div>
   </el-scrollbar>
+
+  <!-- 🔍 查询按钮（悬浮在选中文本附近） -->
+  <el-button
+    v-if="showQueryButton"
+    class="query-btn"
+    @click="querySelectedText"
+    :style="{ top: buttonPosition.y + 'px', left: buttonPosition.x + 'px' }"
+  >
+    🔍 查询
+  </el-button>
+
+  <!-- 📌 查询结果浮窗 -->
+  <el-dialog v-model="showQueryDialog" title="查询结果" width="50%">
+    <div v-if="parsedQueryResult">
+      <h3>📖 术语定义</h3>
+      <p>{{ parsedQueryResult.definition }}</p>
+
+      <h3 v-if="parsedQueryResult.cross_discipline_insights.length > 0">
+        🔍 跨学科洞见
+      </h3>
+      <ul v-if="parsedQueryResult.cross_discipline_insights.length > 0">
+        <li
+          v-for="(
+            insight, index
+          ) in parsedQueryResult.cross_discipline_insights"
+          :key="'insight-' + index"
+        >
+          {{ insight }}
+        </li>
+      </ul>
+
+      <h3 v-if="parsedQueryResult.application_examples.length > 0">
+        💡 应用示例
+      </h3>
+      <ul v-if="parsedQueryResult.application_examples.length > 0">
+        <li
+          v-for="(example, index) in parsedQueryResult.application_examples"
+          :key="'example-' + index"
+        >
+          {{ example }}
+        </li>
+      </ul>
+    </div>
+    <p v-else>正在查询...</p>
+  </el-dialog>
 </template>
 
 <script setup>
-import { ref, nextTick, watch } from "vue";
+import { ref, nextTick, watch, computed } from "vue";
+import axios from "axios";
 
 const props = defineProps({
   messages: Array,
   users: Object,
   aiBots: { type: Array, default: () => [] },
   groupId: String,
+  sessionId: String, // ✅ 新增 sessionId
+  userId: String, // ✅ 新增 userId
+  aiProvider: String, // ✅ 新增 aiProvider
+});
+
+// ✅ 选中的文本
+const selectedText = ref("");
+const showQueryButton = ref(false);
+const buttonPosition = ref({ x: 0, y: 0 });
+const showQueryDialog = ref(false);
+const queryResult = ref("");
+
+// ✅ 解析 `queryResult` 并转换成易读的格式
+const parsedQueryResult = computed(() => {
+  if (!queryResult.value || queryResult.value.trim() === "") {
+    return null; // ✅ 避免解析空字符串
+  }
+  try {
+    const data = JSON.parse(queryResult.value);
+    if (!data || !data.term_explanation) return null;
+    return {
+      definition: data.term_explanation.definition || "暂无定义。",
+      cross_discipline_insights:
+        data.term_explanation.cross_discipline_insights || [],
+      application_examples: data.term_explanation.application_examples || [],
+    };
+  } catch (error) {
+    console.error("解析查询结果失败:", error);
+    return null; // ✅ 解析失败时返回 null，避免页面崩溃
+  }
 });
 
 // ✅ 获取消息发送者名称
@@ -66,6 +146,57 @@ watch(
   },
   { deep: true }
 );
+
+// ✅ 监听文本选择
+const handleTextSelection = (event) => {
+  const selection = window.getSelection().toString().trim();
+
+  if (selection) {
+    selectedText.value = selection;
+    showQueryButton.value = true;
+
+    // 📌 设置查询按钮位置
+    buttonPosition.value = {
+      x: event.pageX + 10,
+      y: event.pageY - 30,
+    };
+  } else {
+    showQueryButton.value = false;
+  }
+};
+
+const querySelectedText = async () => {
+  if (
+    !selectedText.value ||
+    !props.groupId ||
+    !props.userId ||
+    !props.sessionId
+  )
+    return;
+
+  showQueryDialog.value = true;
+  queryResult.value = ""; // 清空旧数据
+
+  try {
+    const response = await axios.post(
+      "http://localhost:8000/api/discussion_insights",
+      {
+        group_id: props.groupId,
+        session_id: props.sessionId,
+        user_id: props.userId,
+        message_text: selectedText.value,
+        ai_provider: props.aiProvider || "xai", // 默认使用 xAI
+      }
+    );
+
+    queryResult.value = response.data.insight_text; // 获取 AI 解释的术语
+  } catch (error) {
+    queryResult.value = "查询失败，请稍后重试。";
+    console.error("查询失败:", error);
+  }
+
+  showQueryButton.value = false; // 关闭查询按钮
+};
 </script>
 
 <style scoped>
@@ -127,5 +258,20 @@ watch(
 .timestamp {
   font-size: 12px;
   color: #aaa;
+}
+/* 🔍 查询按钮 */
+.query-btn {
+  position: absolute;
+  background: #409eff;
+  color: white;
+  padding: 6px 12px;
+  font-size: 14px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease-in-out;
+}
+
+.query-btn:hover {
+  background: #55a2ef;
 }
 </style>

@@ -1,5 +1,6 @@
-import { createRouter, createWebHistory } from "vue-router";
-import ChatView from "../views/ChatView.vue"; // 确保 `views/ChatView.vue` 存在
+import { createRouter, createWebHashHistory } from "vue-router";
+import ChatView from "../views/ChatView.vue";
+import PersonalDashboard from "../personal_device/PersonalDashboard.vue";
 
 const routes = [
   {
@@ -7,10 +8,15 @@ const routes = [
     name: "Chat",
     component: ChatView,
   },
+  {
+    path: "/personal-dashboard",
+    name: "PersonalDashboard",
+    component: PersonalDashboard,
+  },
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(), // ✅ 改成 Hash 模式，避免 307 问题
   routes,
 });
 

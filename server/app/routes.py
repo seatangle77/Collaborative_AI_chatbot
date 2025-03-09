@@ -1,15 +1,18 @@
 import os
 import requests
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List 
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+from app.ai_provider import generate_response
 from app.database import supabase_client
 from app.websocket_routes import (
     push_chat_message, 
     push_ai_summary  # ✅ 确保 WebSocket 触发 AI 会议总结
 )
+import datetime
+
 
 load_dotenv()
 
@@ -213,3 +216,94 @@ async def get_chat_summaries_by_session(session_id: str):
         status_code=200, 
         headers={"Access-Control-Allow-Origin": "*"}  # ✅ 允许跨域
     )
+
+# ✅ 定义数据模型
+class DiscussionInsightCreate(BaseModel):
+    group_id: str
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    message_text: str  # 用户查询的文本
+    ai_provider: Optional[str] = "xai"  # AI 提供商
+
+class DiscussionInsightResponse(BaseModel):
+    id: int
+    group_id: str
+    session_id: Optional[str]
+    user_id: Optional[str]
+    message_id: Optional[int]
+    insight_text: str
+    created_at: str
+
+# ✅ 创建 AI 查询记录
+@router.post("/api/discussion_insights", response_model=DiscussionInsightResponse)
+async def create_discussion_insight(data: DiscussionInsightCreate):
+    """
+    通过 AI 进行跨学科术语查询，并存入 discussion_insights 表。
+    """
+    try:
+        # 🚀 通过 AI 进行术语查询
+        ai_response = generate_response(
+            main_prompt=data.message_text,
+            prompt_type="term_explanation",
+            api_provider=data.ai_provider
+        )
+
+        # ✅ 记录 AI 生成的查询结果
+        new_insight = {
+            "group_id": data.group_id,
+            "session_id": data.session_id,
+            "user_id": data.user_id,
+            "message_id": None,  # 目前没有消息 ID，设为空
+            "insight_text": ai_response,
+            "created_at": datetime.datetime.utcnow().isoformat()
+        }
+
+        # 插入数据库
+        insert_response = supabase_client.from_("discussion_insights").insert(new_insight).execute()
+        
+        if not insert_response.data:
+            raise HTTPException(status_code=500, detail="插入数据库失败")
+
+        return DiscussionInsightResponse(**insert_response.data[0])
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+# ✅ 获取所有查询记录
+@router.get("/api/discussion_insights", response_model=List[DiscussionInsightResponse])
+async def get_all_discussion_insights():
+    """
+    获取所有查询记录
+    """
+    try:
+        response = supabase_client.from_("discussion_insights").select("*").execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取查询记录失败: {str(e)}")
+
+# ✅ 按 `group_id` 获取查询记录
+@router.get("/api/discussion_insights/{group_id}", response_model=List[DiscussionInsightResponse])
+async def get_discussion_insights_by_group(group_id: str):
+    """
+    获取特定小组的查询记录
+    """
+    try:
+        response = supabase_client.from_("discussion_insights").select("*").eq("group_id", group_id).execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取查询记录失败: {str(e)}")
+
+# ✅ 按 `group_id` 和 `session_id` 获取查询记录
+@router.get("/api/discussion_insights/{group_id}/{session_id}", response_model=List[DiscussionInsightResponse])
+async def get_discussion_insights_by_session(group_id: str, session_id: str):
+    """
+    获取特定小组和会话的查询记录
+    """
+    try:
+        response = supabase_client.from_("discussion_insights").select("*") \
+            .eq("group_id", group_id) \
+            .eq("session_id", session_id) \
+            .execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取查询记录失败: {str(e)}")

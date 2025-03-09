@@ -48,6 +48,9 @@
           :users="users"
           :aiBots="aiBots"
           :groupId="selectedGroupId"
+          :sessionId="selectedSessionId"
+          :userId="selectedUser"
+          :aiProvider="selectedAiProvider"
         />
         <MessageInput
           :users="filteredUsers"
@@ -91,6 +94,7 @@ const selectedGroupName = ref("");
 const selectedGroupId = ref(null);
 const selectedSessionId = ref(null); // ✅ 存储当前 Session ID
 const selectedSessionTitle = ref("");
+const selectedUser = ref(null);
 const groupMembers = ref([]);
 const groups = ref([]);
 const aiBots = ref([]);
@@ -156,6 +160,17 @@ const filteredUsers = computed(() => {
     )
   );
 });
+
+// ✅ 监听 `filteredUsers`，确保有默认的 `selectedUser`
+watch(
+  filteredUsers,
+  (newUsers) => {
+    if (Object.keys(newUsers).length > 0) {
+      selectedUser.value = Object.keys(newUsers)[0];
+    }
+  },
+  { immediate: true }
+);
 
 // ✅ **切换小组**
 const selectGroup = async (groupId) => {
@@ -229,17 +244,25 @@ const fetchUsers = async () => {
 // ✅ **发送消息（字段补全）**
 const sendMessage = async (payload) => {
   try {
-    const response = await axios.post("http://localhost:8000/api/chat/send", {
-      group_id: payload.group_id,
-      session_id: selectedSessionId.value, // ✅ 关联 session
-      user_id: payload.user_id,
-      chatbot_id: payload.chatbot_id || null,
-      message: payload.message,
-      role: payload.role || "user",
-      message_type: payload.message_type || "text",
-      sender_type: payload.sender_type || "user",
-      speaking_duration: payload.speaking_duration || 0,
-    });
+    const response = await axios.post(
+      "http://localhost:8000/api/chat/send",
+      {
+        group_id: payload.group_id,
+        session_id: selectedSessionId.value, // ✅ 关联 session
+        user_id: payload.user_id,
+        chatbot_id: payload.chatbot_id || null,
+        message: payload.message,
+        role: payload.role || "user",
+        message_type: payload.message_type || "text",
+        sender_type: payload.sender_type || "user",
+        speaking_duration: payload.speaking_duration || 0,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json", // ✅ 解决 CORS content-type 问题
+        },
+      }
+    );
 
     console.log("📤 发送消息到数据库:", response.data);
   } catch (error) {

@@ -1,12 +1,10 @@
 <template>
   <el-container>
-    <ChatView />
+    <router-view />
   </el-container>
 </template>
 
-<script setup>
-import ChatView from "./views/ChatView.vue";
-</script>
+<script setup></script>
 
 <style>
 body {
