@@ -57,9 +57,11 @@ def generate_ai_response(main_prompt: str, history_prompt: str = None, prompt_ty
 
         # ✅ 构造请求体
         payload = {
-            "model": "gpt-4o",  # ✅ 正确写法
+            "model": "gpt-4",  # ✅ 正确写法
             "messages": messages,
-            "temperature": 1
+            "temperature": 1,
+            "max_tokens": 280,
+
         }   
 
         # ✅ API 头部

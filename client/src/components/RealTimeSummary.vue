@@ -64,9 +64,18 @@ const parsedSummary = ref(null);
 
 // ✅ **解析 AI 会议总结**
 const parseAiSummary = (insightText) => {
-  if (!insightText) return;
+  if (!insightText || typeof insightText !== "string") {
+    console.warn("⚠️ AI summary is empty or not a string:", insightText);
+    parsedSummary.value = null;
+    return;
+  }
   try {
     let cleanedText = insightText.trim();
+    if (cleanedText.startsWith("❌ AI 生成失败")) {
+      console.warn("⚠️ AI 生成失败:", cleanedText);
+      parsedSummary.value = null;
+      return;
+    }
 
     // 🔹 处理 AI 可能返回 ```json\n...\n``` 的情况
     if (cleanedText.startsWith("```json")) {

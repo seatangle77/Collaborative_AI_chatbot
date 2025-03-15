@@ -64,7 +64,9 @@ def generate_ai_response(main_prompt: str, history_prompt: str = None, prompt_ty
         api_payload = {
             "model": "grok-2-latest",
              "temperature": 1,
-            "messages": messages
+            "messages": messages,
+            "max_tokens": 280,
+
         }
 
         # ✅ **打印即将发送的 API 请求参数**
