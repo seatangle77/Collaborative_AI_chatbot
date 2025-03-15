@@ -28,6 +28,27 @@ async def get_users():
 async def get_user(user_id: str):
     return supabase_client.table("users").select("*").eq("user_id", user_id).execute().data
 
+@router.get("/api/users/{user_id}/agent")
+async def get_user_agent(user_id: str):
+    """
+    获取用户的 AI 代理信息 (agent_id, agent_name)
+    """
+    result = (
+        supabase_client.table("users")
+        .select("agent_id, personal_agents(name)")
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    if not result.data or len(result.data) == 0:
+        raise HTTPException(status_code=404, detail="未找到该用户的 AI 代理")
+
+    agent_info = result.data[0]
+    return {
+        "agent_id": agent_info.get("agent_id"),
+        "agent_name": agent_info.get("personal_agents", {}).get("name", "无 AI 代理"),
+    }
+
 # ========== 📌 小组管理 API ==========
 @router.get("/api/groups/")
 async def get_groups():
@@ -307,3 +328,4 @@ async def get_discussion_insights_by_session(group_id: str, session_id: str):
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取查询记录失败: {str(e)}")
+
