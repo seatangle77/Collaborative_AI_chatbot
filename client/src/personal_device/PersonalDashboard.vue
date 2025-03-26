@@ -43,8 +43,9 @@
         class="ai-provider-select"
         @change="changeAiProvider"
       >
-        <el-option label="xAI" value="xai" />
-        <el-option label="HKUST GZ" value="hkust_gz" />
+        <el-option label="Grok-2" value="xai" />
+        <el-option label="GPT-4o" value="hkust_gz" />
+        <el-option label="Genmini-2.5-pro" value="gemini" />
       </el-select>
     </el-header>
 

@@ -2,6 +2,7 @@ import os
 import json
 from openai import OpenAI  
 from dotenv import load_dotenv
+from app.prompt_loader import get_prompt_from_database
 
 # ✅ 加载 .env 配置
 load_dotenv()
@@ -16,28 +17,13 @@ client = OpenAI(
     base_url=XAI_API_BASE,
 )
 
-# ✅ 获取 `prompt.json` 的正确路径
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # 获取当前 `xai_api.py` 所在的目录
-PROMPT_PATH = os.path.join(BASE_DIR, "prompt.json")  # 生成 `prompt.json` 的完整路径
-
-# ✅ 读取 JSON 配置，确保文件路径正确
-try:
-    with open(PROMPT_PATH, "r", encoding="utf-8") as f:
-        prompt_config = json.load(f)
-except FileNotFoundError:
-    print(f"❌ 错误：未找到 `prompt.json` 文件，检查路径是否正确：{PROMPT_PATH}")
-    prompt_config = {}  # 避免后续 `KeyError`，但会导致 API 无法正确运行
-
-def generate_ai_response(main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "grok-2-latest"):
+def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "grok-2-latest"):
     """
     发送请求到 xAI API，基于 prompt_type 选择不同的提示词 (prompt)
     """
-    if prompt_type not in prompt_config:
-        return f"❌ 未找到 '{prompt_type}' 对应的 prompt，请检查 `prompt.json`。"
-
     try:
         # ✅ 读取对应类型的 prompt
-        prompt_data = prompt_config[prompt_type]
+        prompt_data = get_prompt_from_database(bot_id, prompt_type)
         max_words = prompt_data["max_words"]
         system_prompt = prompt_data["system_prompt"].replace("{max_words}", str(max_words))
 

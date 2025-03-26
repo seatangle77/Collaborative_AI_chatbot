@@ -4,6 +4,10 @@ from app.ai_provider import generate_response  # ✅ 统一管理 AI API 提供�
 import json
 import asyncio
 
+def get_bot_id_by_group(group_id: str) -> str:
+    result = supabase_client.table("ai_bots").select("id").eq("group_id", group_id).limit(1).execute().data
+    return result[0]["id"] if result else None
+
 websocket_router = APIRouter()
 
 # 存储 WebSocket 连接
@@ -120,6 +124,7 @@ async def check_cognitive_guidance(group_id: str, api_provider: str):
     conversation = "\n".join([msg["message"] for msg in chat_history])
     conversation_content = f"以下是团队最近的聊天记录，请基于此内容分析讨论质量，并提供合适的知识拓展和引导建议：\n\n{conversation}"
 
+    bot_id = get_bot_id_by_group(group_id)
 
     last_summary = (
         supabase_client.table("chat_summaries")
@@ -135,6 +140,7 @@ async def check_cognitive_guidance(group_id: str, api_provider: str):
     print(f"🪐 生成 AI bot 聊天干预: group_id={group_id}，使用 API: {api_provider}，传入main prompt: {conversation_content}，传入history_prompt: {summary_text}")
 
     guidance_response = generate_response(
+        bot_id=bot_id,
         main_prompt=conversation_content,  # 主要内容（最近聊天）
         history_prompt=summary_text,  # 过去的 AI 会议总结
         prompt_type="cognitive_guidance",
@@ -254,8 +260,11 @@ async def push_ai_summary(group_id: str, api_provider: str):
     conversation = "\n".join([msg["message"] for msg in chat_history])
     previous_summary = last_ai_summary.get(group_id, "")
 
+    bot_id = get_bot_id_by_group(group_id)
+
     # ✅ 发送 AI 生成请求（传递 main_prompt 和 history_prompt）
     ai_response = generate_response(
+        bot_id=bot_id,
         main_prompt=conversation,  # 主要内容（最新聊天）
         history_prompt=previous_summary,  # 过去的 AI 会议总结
         prompt_type="real_time_summary",

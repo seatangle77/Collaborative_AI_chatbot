@@ -29,8 +29,9 @@
         popper-class="custom-dropdown"
         @change="changeAiProvider"
       >
-        <el-option label="xAI" value="xai" />
-        <el-option label="HKUST GZ" value="hkust_gz" />
+        <el-option label="Grok-2" value="xai" />
+        <el-option label="GPT-4o" value="hkust_gz" />
+        <el-option label="Genmini-2.5-pro" value="gemini" />
       </el-select>
     </el-header>
 
@@ -38,7 +39,13 @@
     <el-container class="main-content">
       <!-- 📌 左侧议程 -->
       <el-aside class="agenda-panel">
-        <AgendaDisplay :agendas="chatAgendas" />
+        <AgendaDisplay
+          :agendas="chatAgendas"
+          :groupName="selectedGroupName"
+          :groupGoal="
+            groups.find((g) => g.id === selectedGroupId)?.group_goal || ''
+          "
+        />
       </el-aside>
 
       <!-- ✅ 聊天窗口 & AI 实时总结 -->
@@ -414,8 +421,11 @@ onMounted(() => {
 }
 
 /* 📌 议程区域 */
+.agenda-panel {
+  flex: 1.2;
+}
 .agenda-display {
-  width: 96%;
+  width: 100%;
   padding: 15px;
   padding-left: 0;
   background: white;
@@ -473,7 +483,7 @@ onMounted(() => {
 
 /* 📌 聊天区域 */
 .chat-area {
-  flex: 2.5;
+  flex: 1.5;
   background: white;
   padding: 15px;
   border-radius: 10px;
@@ -484,7 +494,7 @@ onMounted(() => {
 
 /* 📌 AI 实时总结面板 */
 .realtime-summary {
-  flex: 1;
+  flex: 1.2;
   padding: 15px;
   background: #f9f9f9;
   border-radius: 10px;

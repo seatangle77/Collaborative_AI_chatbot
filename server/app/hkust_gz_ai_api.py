@@ -2,6 +2,7 @@ import os
 import json
 import requests
 from dotenv import load_dotenv
+from app.prompt_loader import get_prompt_from_database
 
 # ✅ 加载 .env 配置
 load_dotenv()
@@ -10,29 +11,18 @@ load_dotenv()
 HKUST_AI_API_KEY = os.getenv("SCHOOL_GPT_API_KEY")
 HKUST_AI_API_BASE = os.getenv("SCHOOL_GPT_API_URL", "https://gpt-api.hkust-gz.edu.cn/v1")
 
-# ✅ 读取 `prompt.json`
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROMPT_PATH = os.path.join(BASE_DIR, "prompt.json")
-
-try:
-    with open(PROMPT_PATH, "r", encoding="utf-8") as f:
-        prompt_config = json.load(f)
-except FileNotFoundError:
-    print(f"❌ `prompt.json` 文件未找到: {PROMPT_PATH}")
-    prompt_config = {}
-
-def generate_ai_response(main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "gpt-4"):
+def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "gpt-4"):
     """
     调用 HKUST GZ AI API 生成 AI 会议总结
     """
     if not HKUST_AI_API_KEY:
         return "❌ API Key 为空，请检查 `.env` 配置"
 
-    if prompt_type not in prompt_config:
-        return f"❌ '{prompt_type}' 的 prompt 未定义，请检查 `prompt.json`。"
+    prompt_data = get_prompt_from_database(bot_id, prompt_type)
+    if prompt_data is None:
+        return f"❌ '{prompt_type}' 的 prompt 未定义，请检查数据库。"
 
     try:
-        prompt_data = prompt_config[prompt_type]
         max_words = prompt_data["max_words"]
         system_prompt = prompt_data["system_prompt"].replace("{max_words}", str(max_words))
 

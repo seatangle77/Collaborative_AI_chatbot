@@ -22,11 +22,11 @@ router = APIRouter()
 # ========== 📌 用户管理 API ==========
 @router.get("/api/users/")
 async def get_users():
-    return supabase_client.table("users").select("*").execute().data
+    return supabase_client.table("users_info").select("*").execute().data
 
 @router.get("/api/users/{user_id}")
 async def get_user(user_id: str):
-    return supabase_client.table("users").select("*").eq("user_id", user_id).execute().data
+    return supabase_client.table("users_info").select("*").eq("user_id", user_id).execute().data
 
 @router.get("/api/users/{user_id}/agent")
 async def get_user_agent(user_id: str):
@@ -34,7 +34,7 @@ async def get_user_agent(user_id: str):
     获取用户的 AI 代理信息 (agent_id, agent_name)
     """
     result = (
-        supabase_client.table("users")
+        supabase_client.table("users_info")
         .select("agent_id, personal_agents(name)")
         .eq("user_id", user_id)
         .execute()

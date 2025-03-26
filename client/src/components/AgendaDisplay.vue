@@ -1,5 +1,13 @@
 <template>
   <el-card class="agenda-display">
+    <!-- 🔹 小组信息区 -->
+    <div class="group-info">
+      <div class="group-name">👥 {{ groupName }}</div>
+      <div class="group-item">
+        <span class="group-topic">Group Goal</span>
+        <p class="group-description">{{ groupGoal }}</p>
+      </div>
+    </div>
     <!-- 📌 议程标题 -->
     <div class="agenda-header">
       <span class="agenda-title">📌 Current Agenda</span>
@@ -39,6 +47,8 @@ import { ref, watch } from "vue";
 
 const props = defineProps({
   agendas: Array,
+  groupName: String,
+  groupGoal: String,
 });
 
 // ✅ **切换议程状态**
@@ -100,6 +110,41 @@ const getStatusClass = (status) => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+}
+.group-info {
+  margin-bottom: 30px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #444;
+  line-height: 1.6;
+  background: linear-gradient(135deg, #fff7e1, #ffebcc);
+  border-left: 5px solid #ff9800;
+}
+
+.group-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff9800;
+}
+.group-item {
+  border-radius: 12px;
+  padding: 15px;
+  transition: background 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.group-topic {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+}
+.group-description {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.5;
 }
 
 /* 🔹 标题栏 */
