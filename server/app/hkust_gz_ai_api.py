@@ -11,14 +11,30 @@ load_dotenv()
 HKUST_AI_API_KEY = os.getenv("SCHOOL_GPT_API_KEY")
 HKUST_AI_API_BASE = os.getenv("SCHOOL_GPT_API_URL", "https://gpt-api.hkust-gz.edu.cn/v1")
 
-def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "gpt-4"):
+def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "gpt-4", agent_id: str = None):
     """
     调用 HKUST GZ AI API 生成 AI 会议总结
     """
     if not HKUST_AI_API_KEY:
         return "❌ API Key 为空，请检查 `.env` 配置"
 
-    prompt_data = get_prompt_from_database(bot_id, prompt_type)
+    if prompt_type == "term_explanation":
+        if not agent_id:
+            raise ValueError("term_explanation 类型必须提供 agent_id")
+        prompt_data = get_prompt_from_database(
+            bot_id=agent_id,
+            prompt_type=prompt_type,
+            agent_id=agent_id
+        )
+    else:
+        if not bot_id:
+            raise ValueError("非 term_explanation 类型必须提供 bot_id")
+        prompt_data = get_prompt_from_database(
+            bot_id=bot_id,
+            prompt_type=prompt_type,
+            agent_id=agent_id
+        )
+
     if prompt_data is None:
         return f"❌ '{prompt_type}' 的 prompt 未定义，请检查数据库。"
 
@@ -47,7 +63,7 @@ def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = No
 
         # ✅ 构造请求体
         payload = {
-            "model": "gpt-4",  # ✅ 正确写法
+            "model": "gpt-4o", 
             "messages": messages,
             "temperature": 1,
             "max_tokens": 280,

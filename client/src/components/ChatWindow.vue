@@ -76,6 +76,7 @@ const props = defineProps({
   sessionId: String, // ✅ 新增 sessionId
   userId: String, // ✅ 新增 userId
   aiProvider: String, // ✅ 新增 aiProvider
+  agentId: String, // ✅ 新增 agentId
 });
 
 // ✅ 选中的文本
@@ -91,7 +92,10 @@ const parsedQueryResult = computed(() => {
     return null; // ✅ 避免解析空字符串
   }
   try {
-    const data = JSON.parse(queryResult.value);
+    const cleanJson = queryResult.value
+      .replace(/^```json\s*/i, "")
+      .replace(/```$/, "");
+    const data = JSON.parse(cleanJson);
     if (!data || !data.term_explanation) return null;
     return {
       definition: data.term_explanation.definition || "暂无定义。",
@@ -190,6 +194,7 @@ const querySelectedText = async () => {
         user_id: props.userId,
         message_text: selectedText.value,
         ai_provider: props.aiProvider || "xai", // 默认使用 xAI
+        agent_id: props.agentId, // ✅ 新增
       }
     );
 

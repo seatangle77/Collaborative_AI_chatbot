@@ -245,6 +245,7 @@ class DiscussionInsightCreate(BaseModel):
     user_id: Optional[str] = None
     message_text: str  # 用户查询的文本
     ai_provider: Optional[str] = "xai"  # AI 提供商
+    agent_id: Optional[str] = None  # 新增字段
 
 class DiscussionInsightResponse(BaseModel):
     id: int
@@ -262,13 +263,32 @@ async def create_discussion_insight(data: DiscussionInsightCreate):
     通过 AI 进行跨学科术语查询，并存入 discussion_insights 表。
     """
     try:
-        # 🚀 通过 AI 进行术语查询
+        # ✅ 打印传入参数
+        print("📥 接收到查询请求:")
+        print(f"🔹 message_text: {data.message_text}")
+        print(f"🔹 ai_provider: {data.ai_provider}")
+        print(f"🔹 agent_id: {data.agent_id}")
+        print(f"🔹 prompt_type: term_explanation")
+
+        # ✅ 判断使用 agent_id 还是 bot_id（必须二选一）
+        if "term_explanation" == "term_explanation":  # 你后续可以改为变量
+            if not data.agent_id:
+                raise HTTPException(status_code=400, detail="term_explanation 类型必须传入 agent_id")
+            provider_bot_id = data.agent_id
+        else:
+            if not data.bot_id:
+                raise HTTPException(status_code=400, detail="非 term_explanation 类型必须传入 bot_id")
+            provider_bot_id = data.bot_id
+
         ai_response = generate_response(
+            bot_id=provider_bot_id,
             main_prompt=data.message_text,
             prompt_type="term_explanation",
-            api_provider=data.ai_provider
+            api_provider=data.ai_provider,
+            agent_id=data.agent_id
         )
-
+        print("🤖 AI 返回内容:")
+        print(ai_response)
         # ✅ 记录 AI 生成的查询结果
         new_insight = {
             "group_id": data.group_id,
@@ -276,7 +296,8 @@ async def create_discussion_insight(data: DiscussionInsightCreate):
             "user_id": data.user_id,
             "message_id": None,  # 目前没有消息 ID，设为空
             "insight_text": ai_response,
-            "created_at": datetime.datetime.utcnow().isoformat()
+            "created_at": datetime.datetime.utcnow().isoformat(),
+            "agent_id": data.agent_id,  # 新增记录 agent_id
         }
 
         # 插入数据库
@@ -328,4 +349,3 @@ async def get_discussion_insights_by_session(group_id: str, session_id: str):
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取查询记录失败: {str(e)}")
-

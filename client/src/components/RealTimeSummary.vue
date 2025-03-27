@@ -69,22 +69,26 @@ const parseAiSummary = (insightText) => {
     parsedSummary.value = null;
     return;
   }
+
   try {
     let cleanedText = insightText.trim();
+
     if (cleanedText.startsWith("❌ AI 生成失败")) {
       console.warn("⚠️ AI 生成失败:", cleanedText);
       parsedSummary.value = null;
       return;
     }
 
-    // 🔹 处理 AI 可能返回 ```json\n...\n``` 的情况
+    // 🔹 去掉 ```json 包裹
     if (cleanedText.startsWith("```json")) {
       cleanedText = cleanedText.replace(/^```json\n/, "").replace(/\n```$/, "");
     }
 
+    // ✅ 新增：去掉转义斜杠
+    cleanedText = cleanedText.replace(/\\"/g, '"');
+
     const parsedJson = JSON.parse(cleanedText);
 
-    // 🔹 确保字段存在
     if (parsedJson.summary) {
       parsedSummary.value = {
         current_topic: parsedJson.summary.current_topic || "No topic found",
@@ -97,6 +101,7 @@ const parseAiSummary = (insightText) => {
     }
   } catch (error) {
     console.error("❌ Failed to parse AI JSON response:", error);
+    parsedSummary.value = null;
   }
 };
 

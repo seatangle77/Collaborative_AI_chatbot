@@ -1,7 +1,7 @@
 import json
 from app.database import supabase_client
 
-def get_prompt_from_database(bot_id: str, prompt_type: str) -> dict:
+def get_prompt_from_database(bot_id: str, prompt_type: str, agent_id: str = None) -> dict:
     """
     从 ai_bots 表中，根据 bot_id 和 prompt_type 获取对应的 system prompt 和 max_words。
 
@@ -18,6 +18,23 @@ def get_prompt_from_database(bot_id: str, prompt_type: str) -> dict:
         "prompt_type": str
     }
     """
+    if prompt_type == "term_explanation":
+        if not agent_id:
+            raise ValueError("❌ term_explanation 类型需要提供 agent_id")
+        
+        response = supabase_client.table("personal_agents").select("personal_prompt").eq("id", agent_id).execute()
+        if not response.data:
+            raise ValueError(f"❌ 没有找到 agent_id 为 {agent_id} 的记录")
+        
+        record = response.data[0]
+        personal_prompt_str = record.get("personal_prompt")
+
+        return {
+            "max_words": 80,
+            "system_prompt": personal_prompt_str or "",
+            "prompt_type": prompt_type
+        }
+
     response = supabase_client.table("ai_bots").select("discussion_prompt", "knowledge_prompt", "config").eq("id", bot_id).execute()
 
     if not response.data:

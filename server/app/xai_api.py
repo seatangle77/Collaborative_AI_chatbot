@@ -17,17 +17,32 @@ client = OpenAI(
     base_url=XAI_API_BASE,
 )
 
-def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "grok-2-latest"):
+def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = None, prompt_type: str = "real_time_summary", model: str = "grok-2-latest", agent_id: str = None):
     """
     发送请求到 xAI API，基于 prompt_type 选择不同的提示词 (prompt)
     """
     try:
-        # ✅ 读取对应类型的 prompt
-        prompt_data = get_prompt_from_database(bot_id, prompt_type)
+        # ✅ 获取 prompt 数据
+        if prompt_type == "term_explanation":
+            if not agent_id:
+                raise ValueError("term_explanation 类型必须提供 agent_id")
+            prompt_data = get_prompt_from_database(
+                bot_id=agent_id,
+                prompt_type=prompt_type,
+                agent_id=agent_id
+            )
+        else:
+            if not bot_id:
+                raise ValueError("非 term_explanation 类型必须提供 bot_id")
+            prompt_data = get_prompt_from_database(
+                bot_id=bot_id,
+                prompt_type=prompt_type,
+                agent_id=agent_id
+            )
+        
         max_words = prompt_data["max_words"]
         system_prompt = prompt_data["system_prompt"].replace("{max_words}", str(max_words))
 
-        # ✅ 处理不同的 `prompt_type`
         if prompt_type == "real_time_summary":
             user_prompt = f"请在 {max_words} 词以内总结以下内容：\n\n{main_prompt}"
         elif prompt_type == "cognitive_guidance":
@@ -64,6 +79,8 @@ def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = No
 
         # ✅ 发送 API 请求
         response = client.chat.completions.create(**api_payload)
+        print(f"📥 原始响应对象: {response}")
+        print(f"📥 原始响应 JSON: {getattr(response, 'model_dump_json', lambda: str(response))()}")
 
         # ✅ **打印 API 返回结果**
         print(f"📥 API 响应: {response}")
@@ -72,5 +89,7 @@ def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = No
         print(f"✅ xAI API 响应:\n{ai_text}")  # ✅ 打印 AI 生成的内容
         return ai_text
     except Exception as e:
-        print(f"❌ xAI API 请求失败: {e}")
+        print("❌ xAI API 请求失败:")
+        import traceback
+        traceback.print_exc()
         return "AI 生成失败，请稍后再试。"

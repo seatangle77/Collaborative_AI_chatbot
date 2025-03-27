@@ -60,6 +60,7 @@
           :sessionId="selectedSessionId"
           :userId="selectedUser"
           :aiProvider="selectedAiProvider"
+          :agentId="agentId"
         />
       </el-main>
 
@@ -100,11 +101,13 @@ const selectedSessionTitle = ref("");
 const currentUserName = ref("未登录用户");
 const selectedAiProvider = ref("xai");
 const agentName = ref("无 AI 代理");
+const agentId = ref(null);
 
 // 获取用户对应的 AI 代理
 const fetchUserAgent = async (userId) => {
   if (!userId) {
     agentName.value = "无 AI 代理";
+    agentId.value = null;
     return;
   }
 
@@ -113,9 +116,11 @@ const fetchUserAgent = async (userId) => {
       `http://localhost:8000/api/users/${userId}/agent`
     );
     agentName.value = response.data.agent_name || "无 AI 代理";
+    agentId.value = response.data.agent_id || null;
   } catch (error) {
     console.error("获取 AI 代理失败:", error);
     agentName.value = "无 AI 代理";
+    agentId.value = null;
   }
 };
 
@@ -360,7 +365,7 @@ onMounted(() => {
 
 .user-select {
   width: 150px;
-  margin-left: -13%;
+  margin-left: -10%;
 }
 
 .main-content {
