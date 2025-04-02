@@ -1,5 +1,11 @@
 <template>
   <el-container class="chat-container">
+    <AiBotDrawer
+      :model-value="showDrawer"
+      @update:model-value="(val) => (showDrawer = val)"
+      :groupId="selectedGroupId"
+      :aiBots="aiBots"
+    />
     <!-- 📌 头部优化 -->
     <el-header class="chat-header">
       <!-- ✅ 小组选择器 -->
@@ -21,6 +27,12 @@
       <div class="header-title">
         {{ selectedSessionTitle || "No Active Session" }}
       </div>
+      <el-button link @click="showDrawer = true">
+        <span v-if="selectedGroupBot" class="bot-name"
+          >🤖 {{ selectedGroupBot.name }}</span
+        >
+        <el-icon style="color: white; margin-left: 5px"><InfoFilled /></el-icon>
+      </el-button>
 
       <!-- ✅ AI 供应商选择器 -->
       <el-select
@@ -45,6 +57,9 @@
           :groupGoal="
             groups.find((g) => g.id === selectedGroupId)?.group_goal || ''
           "
+          :groupId="selectedGroupId"
+          :sessionId="selectedSessionId"
+          @updateGroupInfo="updateGroupInfo"
         />
       </el-aside>
 
@@ -52,7 +67,8 @@
       <el-main class="chat-area">
         <ChatWindow
           :messages="messages"
-          :users="users"
+          :users="userNames"
+          :usersInfo="filteredUsersInfo"
           :aiBots="aiBots"
           :groupId="selectedGroupId"
           :sessionId="selectedSessionId"
@@ -60,7 +76,7 @@
           :aiProvider="selectedAiProvider"
         />
         <MessageInput
-          :users="filteredUsers"
+          :users="filteredUsersInfo"
           :groupId="selectedGroupId"
           @send-message="sendMessage"
         />
@@ -78,8 +94,10 @@
 </template>
 
 <script setup>
+import AiBotDrawer from "../components/AiBotDrawer.vue";
+const showDrawer = ref(false);
 import { ref, computed, onMounted, watch, nextTick } from "vue";
-import axios from "axios";
+import api from "../services/apiService";
 import ChatWindow from "../components/ChatWindow.vue";
 import MessageInput from "../components/MessageInput.vue";
 import AgendaDisplay from "../components/AgendaDisplay.vue";
@@ -91,6 +109,7 @@ import {
   closeWebSocket,
   changeAiProviderAndTriggerSummary as triggerWebSocketAiSummary,
 } from "../services/websocketService";
+import { InfoFilled } from "@element-plus/icons-vue";
 
 // ✅ **存储状态**
 const messages = ref([]);
@@ -106,6 +125,9 @@ const groupMembers = ref([]);
 const groups = ref([]);
 const aiBots = ref([]);
 const selectedAiProvider = ref("xai"); // ✅ 默认使用 xAI
+const selectedGroupBot = computed(() =>
+  aiBots.value.find((bot) => bot.group_id === selectedGroupId.value)
+); // 新增计算属性
 
 // ✅ **切换 AI 供应商时自动触发 AI 会议总结**
 const changeAiProvider = () => {
@@ -117,8 +139,8 @@ const changeAiProvider = () => {
 // ✅ **获取所有小组**
 const fetchGroups = async () => {
   try {
-    const response = await axios.get("http://localhost:8000/api/groups");
-    groups.value = response.data;
+    const response = await api.getGroups();
+    groups.value = response;
     if (groups.value.length > 0) {
       selectGroup(groups.value[0].id);
     }
@@ -137,8 +159,8 @@ watch(selectedGroupId, async (newGroupId) => {
 // ✅ 在页面加载时获取所有 AI 机器人
 const fetchAllAiBots = async () => {
   try {
-    const response = await axios.get("http://localhost:8000/api/ai_bots");
-    aiBots.value = response.data; // ✅ 存储所有机器人数据
+    const bots = await api.getAiBots();
+    aiBots.value = bots; // ✅ 存储所有机器人数据
   } catch (error) {
     console.error("获取 AI 机器人失败:", error);
   }
@@ -148,17 +170,15 @@ const fetchAllAiBots = async () => {
 const fetchGroupMembers = async (groupId) => {
   if (!groupId) return;
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/groups/${groupId}/members`
-    );
-    groupMembers.value = response.data.map((member) => member.user_id);
+    const memberList = await api.getGroupMembers(groupId);
+    groupMembers.value = memberList.map((member) => member.user_id);
   } catch (error) {
     console.error("获取小组成员失败:", error);
   }
 };
 
 // ✅ **计算当前小组的用户**
-const filteredUsers = computed(() => {
+const filteredUsersInfo = computed(() => {
   if (!selectedGroupId.value || !users.value || !groupMembers.value.length)
     return {};
   return Object.fromEntries(
@@ -168,9 +188,9 @@ const filteredUsers = computed(() => {
   );
 });
 
-// ✅ 监听 `filteredUsers`，确保有默认的 `selectedUser`
+// ✅ 监听 `filteredUsersInfo`，确保有默认的 `selectedUser`
 watch(
-  filteredUsers,
+  filteredUsersInfo,
   (newUsers) => {
     if (Object.keys(newUsers).length > 0) {
       selectedUser.value = Object.keys(newUsers)[0];
@@ -194,10 +214,8 @@ const selectGroup = async (groupId) => {
 const fetchChatHistory = async (groupId) => {
   if (!groupId) return;
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/chat/${groupId}`
-    );
-    messages.value = response.data.reverse(); // 让最新的消息显示在底部
+    const messageList = await api.getChatHistory(groupId);
+    messages.value = messageList.reverse(); // 让最新的消息显示在底部
   } catch (error) {
     console.error("获取聊天记录失败:", error);
   }
@@ -206,13 +224,10 @@ const fetchChatHistory = async (groupId) => {
 // ✅ **获取当前小组的最新 Session，并获取该 Session 相关数据**
 const fetchSessionAndData = async (groupId) => {
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/sessions/${groupId}`
-    );
+    const session = await api.getSession(groupId);
 
-    console.log("fetchSessionAndData", response);
-    selectedSessionId.value = response.data.id; // ✅ 记录当前 Session ID
-    selectedSessionTitle.value = response.data.session_title;
+    selectedSessionId.value = session.id; // ✅ 记录当前 Session ID
+    selectedSessionTitle.value = session.session_title;
 
     fetchChatData(groupId);
     fetchChatAgendas(selectedSessionId.value); // ✅ 用 session_id 获取议程
@@ -226,10 +241,8 @@ const fetchSessionAndData = async (groupId) => {
 const fetchChatAgendas = async (sessionId) => {
   if (!sessionId) return;
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/chat/agenda/session/${sessionId}`
-    );
-    chatAgendas.value = response.data;
+    const agendas = await api.getAgendas(sessionId);
+    chatAgendas.value = agendas;
   } catch (error) {
     console.error("获取聊天议程失败:", error);
   }
@@ -238,9 +251,9 @@ const fetchChatAgendas = async (sessionId) => {
 // ✅ **获取所有用户**
 const fetchUsers = async () => {
   try {
-    const response = await axios.get("http://localhost:8000/api/users/");
-    users.value = response.data.reduce((acc, user) => {
-      acc[user.user_id] = user.name;
+    const userList = await api.getUsers();
+    users.value = userList.reduce((acc, user) => {
+      acc[user.user_id] = user;
       return acc;
     }, {});
   } catch (error) {
@@ -251,25 +264,17 @@ const fetchUsers = async () => {
 // ✅ **发送消息（字段补全）**
 const sendMessage = async (payload) => {
   try {
-    const response = await axios.post(
-      "http://localhost:8000/api/chat/send",
-      {
-        group_id: payload.group_id,
-        session_id: selectedSessionId.value, // ✅ 关联 session
-        user_id: payload.user_id,
-        chatbot_id: payload.chatbot_id || null,
-        message: payload.message,
-        role: payload.role || "user",
-        message_type: payload.message_type || "text",
-        sender_type: payload.sender_type || "user",
-        speaking_duration: payload.speaking_duration || 0,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json", // ✅ 解决 CORS content-type 问题
-        },
-      }
-    );
+    const response = await api.sendChatMessage({
+      group_id: payload.group_id,
+      session_id: selectedSessionId.value, // ✅ 关联 session
+      user_id: payload.user_id,
+      chatbot_id: payload.chatbot_id || null,
+      message: payload.message,
+      role: payload.role || "user",
+      message_type: payload.message_type || "text",
+      sender_type: payload.sender_type || "user",
+      speaking_duration: payload.speaking_duration || 0,
+    });
 
     console.log("📤 发送消息到数据库:", response.data);
   } catch (error) {
@@ -349,12 +354,27 @@ watch(selectedGroupId, async (newGroupId) => {
 const fetchChatSummariesBySession = async (sessionId) => {
   if (!sessionId) return;
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/chat_summaries/session/${sessionId}`
-    );
-    chatSummaries.value = [response.data]; // ✅ 只存储最新的一条
+    const summary = await api.getChatSummaries(sessionId);
+    chatSummaries.value = [summary]; // ✅ 只存储最新的一条
   } catch (error) {
     console.error("获取 AI 会议总结失败:", error);
+  }
+};
+
+// ✅ **新增计算属性 userNames**
+const userNames = computed(() => {
+  return Object.fromEntries(
+    Object.entries(users.value).map(([id, user]) => [id, user.name])
+  );
+});
+
+// ✅ **更新小组信息**
+const updateGroupInfo = ({ name, goal }) => {
+  const group = groups.value.find((g) => g.id === selectedGroupId.value);
+  if (group) {
+    group.name = name;
+    group.group_goal = goal;
+    selectedGroupName.value = name;
   }
 };
 
@@ -500,6 +520,13 @@ onMounted(() => {
   border-radius: 10px;
   box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.08);
   margin-left: 15px;
+}
+
+.bot-name {
+  color: #fff;
+  font-weight: 500;
+  margin-left: 5px;
+  font-size: 16px;
 }
 </style>
 <style>

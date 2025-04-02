@@ -3,6 +3,7 @@ from app.database import supabase_client
 from app.ai_provider import generate_response  # ✅ 统一管理 AI API 提供商
 import json
 import asyncio
+from datetime import datetime, timedelta
 
 def get_bot_id_by_group(group_id: str) -> str:
     result = supabase_client.table("ai_bots").select("id").eq("group_id", group_id).limit(1).execute().data
@@ -88,7 +89,7 @@ async def push_chat_message(group_id, message):
         "user_id": message.get("user_id"),
         "message": message.get("message"),
         "role": message.get("role", "bot" if is_ai_message else "user"),  # ✅ AI 设为 assistant
-        "created_at": message.get("created_at"),  # ✅ 使用 routes.py 的入库时间
+        "created_at": (datetime.utcnow() + timedelta(hours=8)).isoformat(),
         "message_type": message.get("message_type"),
         "sender_type": "bot" if is_ai_message else message.get("sender_type", "user"),  # ✅ AI 设为 bot
         "chatbot_id": message.get("chatbot_id"),

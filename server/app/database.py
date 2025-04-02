@@ -32,4 +32,7 @@ def get_chat_messages_by_group(group_id):
 def insert_chat_message(data):
     return supabase_client.table("chat_messages").insert(data).execute()
 
+def update_chat_agenda(agenda_id, update_fields: dict):
+    return supabase_client.table("chat_agendas").update(update_fields).eq("id", agenda_id).execute()
+
 # 可以根据需求添加更多表的封装方法

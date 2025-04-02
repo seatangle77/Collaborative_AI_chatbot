@@ -8,9 +8,9 @@
       size="large"
     >
       <el-option
-        v-for="(name, userId) in users"
+        v-for="(user, userId) in users"
         :key="userId"
-        :label="name"
+        :label="user.name"
         :value="userId"
       />
     </el-select>

@@ -53,7 +53,7 @@
 
 <script setup>
 import { ref, watch, onMounted } from "vue";
-import axios from "axios";
+import api from "../services/apiService";
 
 const props = defineProps({
   discussion_summary: Array,
@@ -109,11 +109,9 @@ const parseAiSummary = (insightText) => {
 const fetchLatestSummary = async (groupId) => {
   if (!groupId) return;
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/chat_summaries/${groupId}`
-    );
-    if (response.data.length > 0) {
-      parseAiSummary(response.data[0].summary_text);
+    const summaries = await api.fetchLatestSummary(groupId);
+    if (summaries.length > 0) {
+      parseAiSummary(summaries[0].summary_text);
     }
   } catch (error) {
     console.error("❌ Failed to fetch AI summary:", error);

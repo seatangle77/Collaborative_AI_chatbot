@@ -23,16 +23,18 @@
         class="user-select"
       >
         <el-option
-          v-for="(name, userId) in filteredUsers"
+          v-for="(user, userId) in filteredUsersInfo"
           :key="userId"
-          :label="name"
+          :label="user.name"
           :value="userId"
         />
       </el-select>
 
       <!-- ✅ 标题：当前用户 + Session 名称 -->
       <div class="header-title">
-        {{ currentUserName }}
+        <span v-if="selectedUser && users[selectedUser]">
+          {{ users[selectedUser].name }}
+        </span>
         <span class="agent-name">🤖 {{ agentName }}</span>
         - {{ selectedSessionTitle || "No Active Session" }}
       </div>
@@ -55,7 +57,9 @@
       <el-main class="chat-section">
         <ChatWindow
           :messages="messages"
-          :users="users"
+          :users="userNames"
+          :usersInfo="filteredUsersInfo"
+          :aiBots="aiBots"
           :groupId="selectedGroupId"
           :sessionId="selectedSessionId"
           :userId="selectedUser"
@@ -76,7 +80,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
-import axios from "axios";
+import api from "../services/apiService";
 import ChatWindow from "../components/ChatWindow.vue";
 import RealTimeSummary from "../components/RealTimeSummary.vue";
 import TerminologyHelper from "../personal_device/TerminologyHelper.vue";
@@ -112,11 +116,9 @@ const fetchUserAgent = async (userId) => {
   }
 
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/users/${userId}/agent`
-    );
-    agentName.value = response.data.agent_name || "无 AI 代理";
-    agentId.value = response.data.agent_id || null;
+    const response = await api.getUserAgent(userId);
+    agentName.value = response.agent_name || "无 AI 代理";
+    agentId.value = response.agent_id || null;
   } catch (error) {
     console.error("获取 AI 代理失败:", error);
     agentName.value = "无 AI 代理";
@@ -126,6 +128,24 @@ const fetchUserAgent = async (userId) => {
 
 // ✅ **计算当前小组的用户**
 const filteredUsers = computed(() => {
+  if (!selectedGroupId.value || !users.value || !groupMembers.value.length)
+    return {};
+  return Object.fromEntries(
+    Object.entries(users.value).filter(([userId]) =>
+      groupMembers.value.includes(userId)
+    )
+  );
+});
+
+// ✅ **计算用户名称**
+const userNames = computed(() => {
+  return Object.fromEntries(
+    Object.entries(users.value).map(([id, user]) => [id, user.name])
+  );
+});
+
+// ✅ **计算过滤后的用户信息**
+const filteredUsersInfo = computed(() => {
   if (!selectedGroupId.value || !users.value || !groupMembers.value.length)
     return {};
   return Object.fromEntries(
@@ -150,8 +170,8 @@ watch(
 // ✅ **获取所有小组**
 const fetchGroups = async () => {
   try {
-    const response = await axios.get("http://localhost:8000/api/groups");
-    groups.value = response.data;
+    const response = await api.getGroups();
+    groups.value = response;
     if (groups.value.length > 0) {
       selectGroup(groups.value[0].id);
     }
@@ -173,9 +193,9 @@ const changeAiProvider = () => {
 // ✅ **获取所有用户**
 const fetchUsers = async () => {
   try {
-    const response = await axios.get("http://localhost:8000/api/users");
-    users.value = response.data.reduce((acc, user) => {
-      acc[user.user_id] = user.name;
+    const response = await api.getUsers();
+    users.value = response.reduce((acc, user) => {
+      acc[user.user_id] = user;
       return acc;
     }, {});
 
@@ -193,10 +213,8 @@ const fetchUsers = async () => {
 const fetchGroupMembers = async (groupId) => {
   if (!groupId) return;
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/groups/${groupId}/members`
-    );
-    groupMembers.value = response.data.map((member) => member.user_id);
+    const response = await api.getGroupMembers(groupId);
+    groupMembers.value = response.map((member) => member.user_id);
   } catch (error) {
     console.error("获取小组成员失败:", error);
   }
@@ -238,11 +256,9 @@ const selectGroup = async (groupId) => {
 // ✅ **获取当前 Session**
 const fetchSessionAndData = async (groupId) => {
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/sessions/${groupId}`
-    );
-    selectedSessionId.value = response.data.id;
-    selectedSessionTitle.value = response.data.session_title;
+    const response = await api.getSession(groupId);
+    selectedSessionId.value = response.id;
+    selectedSessionTitle.value = response.session_title;
     fetchChatData(groupId);
   } catch (error) {
     console.error("获取 Session 失败:", error);
@@ -253,10 +269,8 @@ const fetchSessionAndData = async (groupId) => {
 const fetchChatHistory = async (groupId) => {
   if (!groupId) return;
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/chat/${groupId}`
-    );
-    messages.value = response.data.reverse();
+    const response = await api.getChatHistory(groupId);
+    messages.value = response.reverse();
   } catch (error) {
     console.error("获取聊天记录失败:", error);
   }
@@ -266,9 +280,7 @@ const fetchChatHistory = async (groupId) => {
 const fetchChatSummaries = async (groupId) => {
   if (!groupId) return;
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/chat_summaries/${groupId}`
-    );
+    const response = await api.getChatSummaries(groupId);
     chatSummaries.value = response.data;
   } catch (error) {
     console.error("获取 AI 会议总结失败:", error);

@@ -11,16 +11,41 @@
         class="chat-message"
         :class="{ 'ai-message': msg.chatbot_id }"
       >
-        <span class="sender">{{ getSenderName(msg) }}:</span>
-        <span class="message-content">{{ msg.message }}</span>
-        <span class="timestamp">{{ formatTimestamp(msg.created_at) }}</span>
+        <template v-if="msg.chatbot_id">
+          <div class="wechat-bubble ai-message">
+            <div class="sender">{{ getSenderName(msg) }}</div>
+            <div class="message-content">{{ msg.message }}</div>
+            <div class="timestamp">{{ formatTimestamp(msg.created_at) }}</div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="wechat-message">
+            <UserInfoPopover :userInfo="usersInfo[msg.user_id]">
+              <img
+                v-if="usersInfo[msg.user_id]?.avatar_link"
+                :src="usersInfo[msg.user_id].avatar_link"
+                class="avatar-circle"
+                alt="avatar"
+              />
+            </UserInfoPopover>
+            <div class="wechat-bubble">
+              <div class="sender">
+                {{ usersInfo[msg.user_id]?.name || "👤 未知用户" }}
+              </div>
+              <div class="message-content">{{ msg.message }}</div>
+              <div class="timestamp">
+                {{ formatTimestamp(msg.created_at) }}
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
   </el-scrollbar>
 
   <!-- 🔍 查询按钮（悬浮在选中文本附近） -->
   <el-button
-    v-if="showQueryButton"
+    v-if="showQueryButton && props.agentId"
     class="query-btn"
     @click="querySelectedText"
     :style="{ top: buttonPosition.y + 'px', left: buttonPosition.x + 'px' }"
@@ -66,11 +91,13 @@
 
 <script setup>
 import { ref, nextTick, watch, computed } from "vue";
-import axios from "axios";
+import api from "../services/apiService";
+import UserInfoPopover from "./UserInfoPopover.vue";
 
 const props = defineProps({
   messages: Array,
   users: Object,
+  usersInfo: Object,
   aiBots: { type: Array, default: () => [] },
   groupId: String,
   sessionId: String, // ✅ 新增 sessionId
@@ -159,7 +186,7 @@ watch(
 const handleTextSelection = (event) => {
   const selection = window.getSelection().toString().trim();
 
-  if (selection) {
+  if (selection && props.agentId) {
     selectedText.value = selection;
     showQueryButton.value = true;
 
@@ -186,19 +213,16 @@ const querySelectedText = async () => {
   queryResult.value = ""; // 清空旧数据
 
   try {
-    const response = await axios.post(
-      "http://localhost:8000/api/discussion_insights",
-      {
-        group_id: props.groupId,
-        session_id: props.sessionId,
-        user_id: props.userId,
-        message_text: selectedText.value,
-        ai_provider: props.aiProvider || "xai", // 默认使用 xAI
-        agent_id: props.agentId, // ✅ 新增
-      }
-    );
+    const response = await api.queryDiscussionInsights({
+      group_id: props.groupId,
+      session_id: props.sessionId,
+      user_id: props.userId,
+      message_text: selectedText.value,
+      ai_provider: props.aiProvider || "xai", // 默认使用 xAI
+      agent_id: props.agentId, // ✅ 新增
+    });
 
-    queryResult.value = response.data.insight_text; // 获取 AI 解释的术语
+    queryResult.value = response.insight_text; // 获取 AI 解释的术语
   } catch (error) {
     queryResult.value = "查询失败，请稍后重试。";
     console.error("查询失败:", error);
@@ -229,31 +253,30 @@ const querySelectedText = async () => {
 /* 🔹 单条消息 */
 .chat-message {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 8px;
   font-size: 14px;
   color: #333;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease-in-out;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
 /* 🔹 AI 机器人消息（突出显示） */
 .ai-message {
   background: #e3f2fd; /* 轻柔蓝色背景 */
-  border-left: 4px solid #409eff; /* 左侧强调色 */
 }
 
 /* 🔹 发送者名字 */
 .sender {
   font-weight: bold;
   color: #409eff;
+  cursor: pointer;
 }
 
 /* 🔹 AI 机器人名字（更亮眼） */
-.ai-message .sender {
+.wechat-bubble.ai-message .sender {
   color: #1565c0; /* 深蓝色 */
 }
 
@@ -268,6 +291,7 @@ const querySelectedText = async () => {
   font-size: 12px;
   color: #aaa;
 }
+
 /* 🔍 查询按钮 */
 .query-btn {
   position: absolute;
@@ -282,5 +306,75 @@ const querySelectedText = async () => {
 
 .query-btn:hover {
   background: #55a2ef;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.avatar-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 6px;
+}
+
+.avatar-emoji {
+  font-size: 20px;
+  margin-right: 6px;
+}
+
+/* 新增微信样式 */
+.wechat-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.wechat-bubble {
+  display: flex;
+  flex-direction: column;
+  background: #fff; /* 保留非机器人消息背景为白色 */
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  max-width: 100%;
+  flex: 1;
+}
+
+.wechat-bubble.ai-message {
+  background: #e3f2fd;
+  border-left: 4px solid #409eff;
+}
+
+.wechat-bubble.ai-message .sender {
+  color: #1565c0;
+}
+
+.wechat-bubble.ai-message .message-content {
+  color: #1e3a8a;
+}
+
+.wechat-bubble .sender {
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 2px;
+  color: #555;
+}
+
+.wechat-bubble .message-content {
+  font-size: 14px;
+  color: #333;
+  word-break: break-word;
+}
+
+.wechat-bubble .timestamp {
+  font-size: 12px;
+  color: #aaa;
+  align-self: flex-end;
+  margin-top: 4px;
 }
 </style>

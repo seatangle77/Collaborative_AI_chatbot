@@ -188,6 +188,88 @@ async def get_agenda_by_session(session_id: str):
 
     return agendas
 
+class AgendaCreateRequest(BaseModel):
+    group_id: str
+    session_id: str
+    agenda_title: str
+    agenda_description: Optional[str] = ""
+    status: Optional[str] = "not_started"
+
+@router.post("/api/chat/agenda")
+async def create_agenda(data: AgendaCreateRequest):
+    """
+    新增一个议程项
+    """
+    try:
+        insert_data = {
+            "group_id": data.group_id,
+            "session_id": data.session_id,
+            "agenda_title": data.agenda_title,
+            "agenda_description": data.agenda_description,
+            "status": data.status,
+        }
+
+        response = supabase_client.table("chat_agendas").insert(insert_data).execute()
+        if not response.data:
+            raise HTTPException(status_code=500, detail="新增议程失败")
+
+        return {"message": "议程已创建", "data": response.data[0]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建议程失败: {str(e)}")
+
+class AgendaUpdateRequest(BaseModel):
+    agenda_title: Optional[str] = None
+    agenda_description: Optional[str] = None
+    status: Optional[str] = None
+
+@router.put("/api/chat/agenda/{agenda_id}")
+async def update_agenda(agenda_id: str, update_data: AgendaUpdateRequest):
+    """
+    修改指定 agenda 的标题、描述或状态
+    """
+    update_fields = {k: v for k, v in update_data.dict().items() if v is not None}
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="未提供任何更新字段")
+
+    update_response = (
+        supabase_client.table("chat_agendas")
+        .update(update_fields)
+        .eq("id", agenda_id)
+        .execute()
+    )
+
+    if not update_response.data:
+        raise HTTPException(status_code=404, detail="未找到要更新的议程")
+
+    latest = (
+        supabase_client.table("chat_agendas")
+        .select("*")
+        .eq("id", agenda_id)
+        .execute()
+        .data[0]
+    )
+
+#    return {"message": "议程已更新", "data": latest}
+    return {"message": "议程已更新", "data": latest}
+
+@router.delete("/api/chat/agenda/{agenda_id}")
+async def delete_agenda(agenda_id: str):
+    """
+    删除指定的议程项
+    """
+    try:
+        response = (
+            supabase_client.table("chat_agendas")
+            .delete()
+            .eq("id", agenda_id)
+            .execute()
+        )
+        if not response.data:
+            raise HTTPException(status_code=404, detail="未找到要删除的议程")
+        return {"message": "议程已删除", "data": response.data[0]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除议程失败: {str(e)}")
+
 # ========== 📌 AI 会议总结 API ==========
 @router.get("/api/chat_summaries/{group_id}")
 async def get_chat_summaries(group_id: str):
@@ -349,3 +431,28 @@ async def get_discussion_insights_by_session(group_id: str, session_id: str):
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取查询记录失败: {str(e)}")
+
+class GroupUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    group_goal: Optional[str] = None
+
+@router.put("/api/groups/{group_id}")
+async def update_group_info(group_id: str, update_data: GroupUpdateRequest):
+    """
+    更新小组的名称和目标
+    """
+    update_fields = {k: v for k, v in update_data.dict().items() if v is not None}
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="未提供任何更新字段")
+
+    response = (
+        supabase_client.table("groups")
+        .update(update_fields)
+        .eq("id", group_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="未找到该小组或更新失败")
+
+    return {"message": "小组信息已更新", "data": response.data[0]}
