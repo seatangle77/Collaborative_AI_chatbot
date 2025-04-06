@@ -3,7 +3,7 @@ import requests
 from pydantic import BaseModel, Field
 from typing import Optional, List 
 from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from app.ai_provider import generate_response
 from app.database import supabase_client
@@ -12,6 +12,7 @@ from app.websocket_routes import (
     push_ai_summary  # ✅ 确保 WebSocket 触发 AI 会议总结
 )
 import datetime
+import traceback
 
 
 load_dotenv()
@@ -456,3 +457,38 @@ async def update_group_info(group_id: str, update_data: GroupUpdateRequest):
         raise HTTPException(status_code=404, detail="未找到该小组或更新失败")
 
     return {"message": "小组信息已更新", "data": response.data[0]}
+
+from app.generate_prompts import generate_prompts_for_group  # ⬅️ 你封装的函数路径
+
+@router.post("/api/ai_bots/generate_prompt/{group_id}")
+async def generate_prompt_for_group(group_id: str):
+    """
+    生成当前小组 AI Bot 的 prompts（如 system_prompt）
+    """
+    try:
+        generate_prompts_for_group(group_id)
+        return {"message": f"{group_id} 的 prompts 已生成"}
+    except Exception as e:
+        print(f"生成失败: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
+
+@router.get("/api/ai_prompt_versions/{bot_id}/{prompt_type}")
+async def get_prompt_versions(bot_id: str, prompt_type: str, version: str = Query(None)):
+    """
+    获取指定 AI Bot 的某类 prompt 的所有历史版本（按时间倒序）
+    """
+    try:
+        query = (
+            supabase_client.table("ai_prompt_versions")
+            .select("*")
+            .eq("ai_bot_id", bot_id)
+            .eq("prompt_type", prompt_type)
+        )
+        if version:
+            query = query.eq("template_version", version)
+
+        result = query.order("created_at", desc=True).execute()
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取历史版本失败: {str(e)}")

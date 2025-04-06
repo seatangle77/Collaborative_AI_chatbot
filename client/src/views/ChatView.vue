@@ -22,6 +22,13 @@
           :value="group.id"
         />
       </el-select>
+      <el-button
+        type="success"
+        @click="handleUpdatePrompt"
+        :disabled="!selectedGroupId"
+      >
+        Update GroupBot Prompt
+      </el-button>
 
       <!-- ✅ 标题 -->
       <div class="header-title">
@@ -95,7 +102,6 @@
 
 <script setup>
 import AiBotDrawer from "../components/AiBotDrawer.vue";
-const showDrawer = ref(false);
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import api from "../services/apiService";
 import ChatWindow from "../components/ChatWindow.vue";
@@ -110,6 +116,7 @@ import {
   changeAiProviderAndTriggerSummary as triggerWebSocketAiSummary,
 } from "../services/websocketService";
 import { InfoFilled } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
 
 // ✅ **存储状态**
 const messages = ref([]);
@@ -128,6 +135,7 @@ const selectedAiProvider = ref("xai"); // ✅ 默认使用 xAI
 const selectedGroupBot = computed(() =>
   aiBots.value.find((bot) => bot.group_id === selectedGroupId.value)
 ); // 新增计算属性
+const showDrawer = ref(false); // 新增代码
 
 // ✅ **切换 AI 供应商时自动触发 AI 会议总结**
 const changeAiProvider = () => {
@@ -375,6 +383,19 @@ const updateGroupInfo = ({ name, goal }) => {
     group.name = name;
     group.group_goal = goal;
     selectedGroupName.value = name;
+  }
+};
+
+// ✅ **更新 Prompt**
+const handleUpdatePrompt = async () => {
+  if (!selectedGroupId.value) return;
+  try {
+    await api.generatePrompt(selectedGroupId.value);
+    console.log("✅ Prompt 已更新");
+    ElMessage.success("GroupBot prompt updated successfully!");
+  } catch (error) {
+    console.error("❌ 更新 Prompt 失败:", error);
+    ElMessage.error("Failed to update GroupBot prompt.");
   }
 };
 

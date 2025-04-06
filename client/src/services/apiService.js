@@ -64,4 +64,12 @@ export default {
   updateGroupInfo(groupId, data) {
     return axios.put(`${BASE_URL}/api/groups/${groupId}`, data).then(res => res.data);
   },
+  generatePrompt(groupId) {
+    return axios.post(`${BASE_URL}/api/ai_bots/generate_prompt/${groupId}`).then(res => res.data);
+  },
+  getPromptVersions(botId, promptType, version = null) {
+    const url = `${BASE_URL}/api/ai_prompt_versions/${botId}/${promptType}`;
+    const params = version ? { version } : {};
+    return axios.get(url, { params }).then(res => res.data);
+  },
 };
