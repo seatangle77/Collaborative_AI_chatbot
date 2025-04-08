@@ -72,4 +72,14 @@ export default {
     const params = version ? { version } : {};
     return axios.get(url, { params }).then(res => res.data);
   },
+  updateUser(userId, data) {
+    return axios.put(`${BASE_URL}/api/users/${userId}`, data).then(res => res.data);
+  },
+  generatePersonalPrompt(agentId) {
+    return axios.post(`${BASE_URL}/api/personal_agents/generate_prompt/${agentId}`);
+  },
+  getPersonalPromptVersions(agentId) {
+    const url = `${BASE_URL}/api/personal_prompt_versions/${agentId}`;
+    return axios.get(url).then(res => res.data);
+  },
 };

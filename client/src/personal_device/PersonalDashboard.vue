@@ -30,12 +30,30 @@
         />
       </el-select>
 
+      <el-button
+        type="success"
+        @click="handleUpdatePersonalPrompt"
+        :disabled="!selectedUser"
+        style="margin-left: 12px; margin-left: -4%"
+      >
+        Update PersonalAgent Prompt
+      </el-button>
+
       <!-- ✅ 标题：当前用户 + Session 名称 -->
       <div class="header-title">
         <span v-if="selectedUser && users[selectedUser]">
           {{ users[selectedUser].name }}
         </span>
-        <span class="agent-name">🤖 {{ agentName }}</span>
+        <span
+          class="agent-name"
+          @click="showDrawer = true"
+          style="cursor: pointer"
+        >
+          🤖 {{ agentName }}
+          <el-icon style="color: white; margin-left: 5px"
+            ><InfoFilled
+          /></el-icon>
+        </span>
         - {{ selectedSessionTitle || "No Active Session" }}
       </div>
 
@@ -53,6 +71,11 @@
 
     <!-- 📌 主体 -->
     <el-container class="main-content">
+      <!-- ✅ 用户信息卡片 -->
+      <el-aside class="left-panel">
+        <UserProfileCard :user="filteredUsersInfo[selectedUser]" />
+      </el-aside>
+
       <!-- ✅ 聊天记录 -->
       <el-main class="chat-section">
         <ChatWindow
@@ -75,16 +98,28 @@
         <ReminderPanel />
       </el-aside>
     </el-container>
+
+    <PersonalAgentDrawer
+      v-if="agentId"
+      :visible="showDrawer"
+      :agentId="agentId"
+      :promptVersions="personalPromptVersions"
+      @update:visible="showDrawer = $event"
+    />
   </el-container>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { InfoFilled } from "@element-plus/icons-vue";
 import api from "../services/apiService";
 import ChatWindow from "../components/ChatWindow.vue";
 import RealTimeSummary from "../components/RealTimeSummary.vue";
 import TerminologyHelper from "../personal_device/TerminologyHelper.vue";
 import ReminderPanel from "../personal_device/ReminderPanel.vue";
+import UserProfileCard from "../components/UserProfileCard.vue";
+import PersonalAgentDrawer from "../components/PersonalAgentDrawer.vue";
 import {
   createWebSocket,
   onMessageReceived,
@@ -96,6 +131,7 @@ import {
 const messages = ref([]);
 const users = ref({});
 const chatSummaries = ref([]);
+const aiBots = ref([]);
 const groups = ref([]);
 const groupMembers = ref([]);
 const selectedUser = ref(null);
@@ -106,6 +142,8 @@ const currentUserName = ref("未登录用户");
 const selectedAiProvider = ref("xai");
 const agentName = ref("无 AI 代理");
 const agentId = ref(null);
+const showDrawer = ref(false);
+const personalPromptVersions = ref({});
 
 // 获取用户对应的 AI 代理
 const fetchUserAgent = async (userId) => {
@@ -330,6 +368,40 @@ watch(
   { immediate: true }
 );
 
+// ✅ **监听 agentId 变化（用于通知子组件更新）**
+watch(agentId, async (newAgentId) => {
+  if (newAgentId) {
+    try {
+      personalPromptVersions.value = await api.getPersonalPromptVersions(
+        newAgentId
+      );
+    } catch (e) {
+      console.error("❌ Failed to load personal prompt versions:", e);
+    }
+  }
+});
+
+// ✅ **更新个人代理提示**
+const handleUpdatePersonalPrompt = async () => {
+  if (!selectedUser.value || !users.value[selectedUser.value]) return;
+  const agentId = users.value[selectedUser.value].agent_id;
+  if (!agentId) {
+    ElMessage.warning("当前用户未绑定个人 Agent");
+    return;
+  }
+
+  try {
+    const response = await api.generatePersonalPrompt(agentId);
+    ElMessage.success(
+      response.message || "Personal agent prompts updated successfully!"
+    );
+    await fetchUserAgent(selectedUser.value); // ✅ 更新 agent 信息
+  } catch (error) {
+    console.error("Failed to update personal prompts:", error);
+    ElMessage.error("Failed to update personal prompts.");
+  }
+};
+
 // ✅ **页面加载时获取数据**
 onMounted(() => {
   fetchGroups();
@@ -354,6 +426,11 @@ onMounted(() => {
   margin-left: 8px;
 }
 
+.bot-name {
+  font-weight: bold;
+  color: #fff;
+}
+
 .dashboard-header {
   background: linear-gradient(135deg, #ffa726, #fb8c00);
   color: white;
@@ -367,7 +444,7 @@ onMounted(() => {
 
 .group-select,
 .ai-provider-select {
-  width: 180px;
+  width: 150px;
   border-radius: 8px;
   font-size: 16px;
   background: rgba(255, 255, 255, 0.2);
@@ -376,14 +453,23 @@ onMounted(() => {
 }
 
 .user-select {
-  width: 150px;
-  margin-left: -10%;
+  width: 130px;
+  margin-left: -4%;
 }
 
 .main-content {
   display: flex;
   flex: 1;
   padding: 20px;
+}
+
+.left-panel {
+  flex: 1;
+  margin-right: 15px;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.08);
 }
 
 .chat-section {

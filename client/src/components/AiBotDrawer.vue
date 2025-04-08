@@ -28,6 +28,14 @@
 
       <el-row :gutter="12" style="margin-bottom: 10px">
         <el-col :span="12">
+          <div style="margin-bottom: 6px; font-weight: bold">
+            🔵 Active Version ({{ currentVersion }})
+          </div>
+        </el-col>
+        <el-col :span="12">
+          <div style="margin-bottom: 6px; font-weight: bold">
+            🟡 Compare With Version
+          </div>
           <el-select
             v-model="compareVersion"
             placeholder="Select version to compare"
@@ -36,25 +44,11 @@
             @change="handleVersionChange"
           >
             <el-option
-              v-for="item in promptVersions[activeTab]"
+              v-for="item in promptVersions[activeTab].filter(
+                (v) => v.template_version !== activePromptVersion
+              )"
               :key="item.template_version"
-              :label="'Compare: ' + item.template_version"
-              :value="item.template_version"
-            />
-          </el-select>
-        </el-col>
-        <el-col :span="12">
-          <el-select
-            v-model="currentVersion"
-            placeholder="Select current version"
-            size="small"
-            style="width: 100%"
-            @change="handleVersionChange"
-          >
-            <el-option
-              v-for="item in promptVersions[activeTab]"
-              :key="item.template_version"
-              :label="'Current: ' + item.template_version"
+              :label="item.template_version"
               :value="item.template_version"
             />
           </el-select>
@@ -69,8 +63,8 @@
         <el-col :span="12" class="el-col">
           <VueMonacoDiffEditor
             v-if="currentPromptText && comparePromptText"
-            :original="comparePromptText"
-            :modified="currentPromptText"
+            :original="currentPromptText"
+            :modified="comparePromptText"
             language="markdown"
             theme="vs"
             :options="{
@@ -133,6 +127,11 @@ const promptVersions = ref({
   summary_to_knowledge: [],
 });
 
+const activePromptVersion = computed(() => {
+  const list = promptVersions.value[activeTab.value] || [];
+  return list.find((v) => v.is_active)?.template_version || "";
+});
+
 const currentPromptText = computed(() => {
   const list = promptVersions.value[activeTab.value] || [];
   return (
@@ -178,15 +177,18 @@ watch(
       try {
         promptVersions.value.cognitive_guidance = await api.getPromptVersions(
           botId,
-          "cognitive_guidance"
+          "cognitive_guidance",
+          null
         );
         promptVersions.value.real_time_summary = await api.getPromptVersions(
           botId,
-          "real_time_summary"
+          "real_time_summary",
+          null
         );
         promptVersions.value.summary_to_knowledge = await api.getPromptVersions(
           botId,
-          "summary_to_knowledge"
+          "summary_to_knowledge",
+          null
         );
         console.log("✅ Prompt versions loaded:", promptVersions.value);
       } catch (e) {
@@ -199,10 +201,11 @@ watch(
 
 watchEffect(() => {
   const versions = promptVersions.value[activeTab.value] || [];
-  if (versions.length > 0) {
-    currentVersion.value = versions[0].template_version;
-    compareVersion.value = versions[1]?.template_version || "";
-  }
+  currentVersion.value = activePromptVersion.value;
+  const otherVersions = versions.filter(
+    (v) => v.template_version !== activePromptVersion.value
+  );
+  compareVersion.value = otherVersions[0]?.template_version || "";
 });
 </script>
 

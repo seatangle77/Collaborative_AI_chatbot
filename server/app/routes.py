@@ -458,7 +458,7 @@ async def update_group_info(group_id: str, update_data: GroupUpdateRequest):
 
     return {"message": "小组信息已更新", "data": response.data[0]}
 
-from app.generate_prompts import generate_prompts_for_group  # ⬅️ 你封装的函数路径
+from app.generate_prompts import generate_prompts_for_group, set_prompt_version_active, generate_prompts_for_personal_agent, set_personal_prompt_version_active # ⬅️ 你封装的函数路径
 
 @router.post("/api/ai_bots/generate_prompt/{group_id}")
 async def generate_prompt_for_group(group_id: str):
@@ -466,8 +466,10 @@ async def generate_prompt_for_group(group_id: str):
     生成当前小组 AI Bot 的 prompts（如 system_prompt）
     """
     try:
-        generate_prompts_for_group(group_id)
-        return {"message": f"{group_id} 的 prompts 已生成"}
+        new_versions = generate_prompts_for_group(group_id)  # 返回生成的版本列表（包含 bot_id, prompt_type, version）
+        for item in new_versions:
+            set_prompt_version_active(item["bot_id"], item["prompt_type"], item["version"])
+        return {"message": f"{group_id} 的 prompts 已生成并设置为当前激活版本"}
     except Exception as e:
         print(f"生成失败: {str(e)}")
         traceback.print_exc()
@@ -489,6 +491,79 @@ async def get_prompt_versions(bot_id: str, prompt_type: str, version: str = Quer
             query = query.eq("template_version", version)
 
         result = query.order("created_at", desc=True).execute()
+        # 标注哪些是当前激活版本
+        for item in result.data:
+            item["is_current"] = item.get("is_active", False)
         return result.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取历史版本失败: {str(e)}")
+
+@router.post("/api/personal_agents/generate_prompt/{agent_id}")
+async def generate_prompt_for_personal_agent(agent_id: str):
+    """
+    为个人 AI Agent 生成 prompts（term_explanation 和 knowledge_followup）
+    """
+    try:
+        new_versions = generate_prompts_for_personal_agent(agent_id)
+        for item in new_versions:
+            set_personal_prompt_version_active(item["agent_id"], item["prompt_type"], item["version"])
+        return {
+            "message": f"{agent_id} 的 prompts 已生成并设置为当前激活版本",
+            "data": new_versions
+        }
+    except Exception as e:
+        print(f"生成失败: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
+
+
+@router.get("/api/personal_prompt_versions/{agent_id}")
+async def get_personal_prompt_versions(agent_id: str):
+    """
+    获取指定个人 AI Agent 的 term_explanation 和 knowledge_followup 的 prompt 历史版本（按时间倒序）
+    """
+    try:
+        result = {}
+
+        for prompt_type in ["term_explanation", "knowledge_followup"]:
+            query = (
+                supabase_client.table("agent_prompt_versions")
+                .select("*")
+                .eq("agent_id", agent_id)
+                .eq("prompt_type", prompt_type)
+                .order("created_at", desc=True)
+            )
+            query_result = query.execute().data
+            for item in query_result:
+                item["is_current"] = item.get("is_active", False)
+            result[prompt_type] = query_result
+
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取历史版本失败: {str(e)}")
+
+class UserInfoUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    academic_background: Optional[dict] = None  # JSON 字段
+    academic_advantages: Optional[str] = None
+
+@router.put("/api/users/{user_id}")
+async def update_user_info(user_id: str, update_data: UserInfoUpdateRequest):
+    """
+    更新用户信息（包括 name, academic_background, academic_advantages）
+    """
+    update_fields = {k: v for k, v in update_data.dict().items() if v is not None}
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="未提供任何更新字段")
+
+    response = (
+        supabase_client.table("users_info")
+        .update(update_fields)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="未找到该用户或更新失败")
+
+    return {"message": "用户信息已更新", "data": response.data[0]}
