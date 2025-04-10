@@ -23,6 +23,7 @@
                   sessionId &&
                   userId &&
                   botId &&
+                  msg.msgid &&
                   getBotModel(msg.chatbot_id)
                 "
                 :groupId="groupId"
@@ -32,6 +33,7 @@
                 :model="getBotModel(msg.chatbot_id)"
                 promptType="cognitive_guidance"
                 :promptVersion="promptVersion"
+                :targetId="msg.msgid"
               />
             </div>
           </div>
@@ -72,8 +74,14 @@
   </el-button>
 
   <!-- 📌 查询结果浮窗 -->
-  <el-dialog v-model="showQueryDialog" title="查询结果" width="50%">
+  <el-dialog
+    v-model="showQueryDialog"
+    title="查询结果"
+    width="50%"
+    @close="handleDialogClose"
+  >
     <div v-if="parsedQueryResult">
+      <h2 class="term-title">{{ selectedText }}</h2>
       <h3>📖 术语定义</h3>
       <p>{{ parsedQueryResult.definition }}</p>
 
@@ -125,6 +133,12 @@ const props = defineProps({
   agentId: String, // ✅ 新增 agentId
   botId: String, // ✅ 新增 botId，用于统一传入的 AI 机器人 ID
   promptVersion: String,
+  agentModel: String,
+  insightsResponse: Function, // ✅ 新增 insightsResponse 回调
+  onCloseQueryDialog: {
+    type: Function,
+    required: false,
+  },
 });
 
 // ✅ 选中的文本
@@ -146,6 +160,7 @@ const parsedQueryResult = computed(() => {
     const data = JSON.parse(cleanJson);
     if (!data || !data.term_explanation) return null;
     return {
+      term_name: data.term_name || "",
       definition: data.term_explanation.definition || "暂无定义。",
       cross_discipline_insights:
         data.term_explanation.cross_discipline_insights || [],
@@ -239,11 +254,21 @@ const querySelectedText = async () => {
       session_id: props.sessionId,
       user_id: props.userId,
       message_text: selectedText.value,
-      ai_provider: props.aiProvider || "xai", // 默认使用 xAI
+      ai_provider: props.aiProvider || "-", // 默认使用 xAI
       agent_id: props.agentId, // ✅ 新增
+      prompt_version: props.promptVersion,
+      model: props.aiProvider,
     });
 
     queryResult.value = response.insight_text; // 获取 AI 解释的术语
+
+    const insights = await api.getDiscussionInsightsByGroupAndAgent(
+      props.groupId,
+      props.agentId
+    );
+    if (props.insightsResponse) {
+      props.insightsResponse(insights);
+    }
   } catch (error) {
     queryResult.value = "查询失败，请稍后重试。";
     console.error("查询失败:", error);
@@ -256,6 +281,22 @@ const querySelectedText = async () => {
 const getBotModel = (botId) => {
   const bot = props.aiBots?.find((b) => b.id === botId);
   return bot?.model || "unknown";
+};
+
+// ✅ 监听 aiProvider 变化
+watch(
+  () => props.aiProvider,
+  (newVal, oldVal) => {
+    console.log(`🧠 aiProvider changed: ${oldVal} → ${newVal}`);
+    // 可根据新的 AI 供应商执行其他逻辑
+  }
+);
+
+// ✅ 处理对话框关闭事件
+const handleDialogClose = () => {
+  if (props.onCloseQueryDialog) {
+    props.onCloseQueryDialog(); // 通知父组件已关闭查询弹窗
+  }
 };
 </script>
 
@@ -411,5 +452,13 @@ const getBotModel = (botId) => {
   justify-content: flex-start;
   margin-top: -10px;
   margin-bottom: 3px;
+}
+
+/* 新增术语标题样式 */
+.term-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #2c3e50;
 }
 </style>

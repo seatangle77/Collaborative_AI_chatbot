@@ -137,16 +137,19 @@ const saveUserInfo = async () => {
 
 <style scoped>
 .user-profile-card {
-  width: 87%;
+  width: 100%;
   max-width: none;
-  padding: 24px;
-  text-align: center;
+  padding: 16px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  text-align: left;
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   position: relative;
 }
@@ -158,35 +161,34 @@ const saveUserInfo = async () => {
 }
 
 .user-name {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
-  margin-bottom: 6px;
-  color: #2c3e50;
+  margin-bottom: 4px;
+  color: #1f2d3d;
 }
 
 .user-background,
 .user-advantages {
-  font-size: 16px;
-  color: #34495e; /* softer blue-gray instead of pure black */
-  margin-top: 8px;
-  line-height: 1.6;
-  text-align: left;
-  width: 100%;
+  font-size: 14px;
+  margin-top: 6px;
 }
 
 .section {
-  margin-top: 12px;
-  font-weight: 500;
-  color: #2c3e50; /* keep section headers bold and slightly darker */
+  font-size: 14px;
+  color: #3c3c3c;
+  line-height: 1.6;
+  margin-top: 8px;
 }
+
 .section strong {
   color: #2878ff;
+  font-weight: 500;
 }
 
 .edit-toggle {
   position: absolute;
-  top: 16px;
-  right: 20px;
+  top: 8px;
+  right: 12px;
   cursor: pointer;
 }
 .input-field {

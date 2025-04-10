@@ -4,6 +4,7 @@ import requests
 from dotenv import load_dotenv
 from .database import supabase_client
 from google import genai
+import traceback
 
 
 # ✅ 加载 .env
@@ -72,14 +73,21 @@ def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = No
         model = "gemini-2.5-pro-exp-03-25"
         model_name = model
 
+        print("📤 使用模型:", model_name)
+        print("📤 组合 prompt 内容如下：\n", "\n\n".join(contents))
+
         # ✅ 调用 Gemini API（非流式版本）
         response = client.models.generate_content(
             model=model_name,
             contents=[{"role": "user", "parts": [{"text": "\n\n".join(contents)}]}],
         )
 
+        print("📥 原始响应对象:", response)
+        print("📥 响应文本内容:", response.candidates[0].content.parts[0].text.strip())
+
         return response.candidates[0].content.parts[0].text.strip()
 
     except Exception as e:
         print(f"❌ Gemini API 调用失败: {e}")
+        traceback.print_exc()
         return f"AI 生成失败，请稍后再试。错误详情: {str(e)}"

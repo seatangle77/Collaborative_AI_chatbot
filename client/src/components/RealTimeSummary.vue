@@ -53,6 +53,7 @@
         </li>
       </ul>
       <ai-feedback
+        :key="latestSummaryId"
         :group-id="groupId"
         :session-id="sessionId"
         :bot-id="botId"
@@ -60,6 +61,7 @@
         :model="currentBotModel"
         :prompt-type="promptType"
         :prompt-version="promptVersion"
+        :target-id="latestSummaryId"
       />
     </div>
   </el-card>

@@ -4,6 +4,7 @@ from app.ai_provider import generate_response  # ✅ 统一管理 AI API 提供�
 import json
 import asyncio
 from datetime import datetime, timedelta
+import uuid
 
 def get_bot_id_by_group(group_id: str) -> str:
     result = supabase_client.table("ai_bots").select("id").eq("group_id", group_id).limit(1).execute().data
@@ -85,6 +86,7 @@ async def push_chat_message(group_id, message):
     is_ai_message = message.get("message_type") == "ai_guidance"
 
     chat_message_entry = {
+        "msgId": str(uuid.uuid4()),
         "group_id": group_id,
         "user_id": message.get("user_id"),
         "message": message.get("message"),

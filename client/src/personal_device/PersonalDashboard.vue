@@ -1,27 +1,45 @@
 <template>
   <el-container class="dashboard-container">
-    <PersonalDashboardHeader
-      :groups="groups"
-      :selectedGroupId="selectedGroupId"
-      :selectedUser="selectedUser"
-      :users="users"
-      :filteredUsersInfo="filteredUsersInfo"
-      :selectedSessionTitle="selectedSessionTitle"
-      :agentName="agentName"
-      :selectedAiProvider="selectedAiProvider"
-      :agentInfo="agentInfoObject"
-      @selectGroup="selectGroup"
-      @selectUser="(val) => (selectedUser = val)"
-      @updatePrompt="handleUpdatePersonalPrompt"
-      @changeAiProvider="changeAiProvider"
-      @toggleDrawer="showDrawer = true"
-    />
+    <div class="dashboard-header-fixed">
+      <PersonalDashboardHeader
+        :groups="groups"
+        :selectedGroupId="selectedGroupId"
+        :selectedUser="selectedUser"
+        :users="users"
+        :filteredUsersInfo="filteredUsersInfo"
+        :selectedSessionTitle="selectedSessionTitle"
+        :agentName="agentName"
+        :selectedAiProvider="selectedAiProvider"
+        :agentInfo="agentInfoObject"
+        @selectGroup="selectGroup"
+        @selectUser="(val) => (selectedUser = val)"
+        @updatePrompt="handleUpdatePersonalPrompt"
+        @changeAiProvider="changeAiProvider"
+        @toggleDrawer="showDrawer = true"
+      />
+    </div>
 
     <!-- 📌 主体 -->
     <el-container class="main-content">
-      <!-- ✅ 用户信息卡片 -->
-      <el-aside class="left-panel">
-        <UserProfileCard :user="filteredUsersInfo[selectedUser]" />
+      <div style="display: flex; align-items: center; margin-right: 10px">
+        <el-button
+          @click="showUserCard = !showUserCard"
+          size="default"
+          class="toggle-user-card-button"
+        >
+          <el-icon style="font-size: 20px">
+            <component :is="showUserCard ? DArrowLeft : DArrowRight" />
+          </el-icon>
+        </el-button>
+      </div>
+      <el-aside
+        class="left-user-card"
+        :class="showUserCard ? 'user-card-expanded' : 'user-card-collapsed'"
+      >
+        <UserProfileCard
+          v-show="showUserCard"
+          :user="filteredUsersInfo[selectedUser]"
+        />
       </el-aside>
 
       <!-- ✅ 聊天记录 -->
@@ -36,14 +54,23 @@
           :userId="selectedUser"
           :aiProvider="selectedAiProvider"
           :agentId="agentId"
+          :agentModel="agentModel"
+          :promptVersion="promptVersion_term_explanation"
+          @closeQueryDialog="handleCloseQueryDialog"
         />
       </el-main>
 
       <!-- ✅ 右侧 AI 助手 -->
       <el-aside class="side-panel">
-        <RealTimeSummary :discussion_summary="chatSummaries" />
-        <TerminologyHelper />
-        <ReminderPanel />
+        <TerminologyHelper
+          v-if="selectedGroupId && agentId"
+          :groupId="selectedGroupId"
+          :agentId="agentId"
+          :refreshSignal="refreshSignal"
+          @insightsResponse="handleInsightsResponse"
+          @onCloseQueryDialog="handleCloseQueryDialog"
+        />
+        <!--<ReminderPanel />-->
       </el-aside>
     </el-container>
 
@@ -60,10 +87,9 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { ElMessage } from "element-plus";
-import { InfoFilled } from "@element-plus/icons-vue";
+import { InfoFilled, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 import api from "../services/apiService";
 import ChatWindow from "../components/ChatWindow.vue";
-import RealTimeSummary from "../components/RealTimeSummary.vue";
 import TerminologyHelper from "../personal_device/TerminologyHelper.vue";
 import ReminderPanel from "../personal_device/ReminderPanel.vue";
 import UserProfileCard from "../components/UserProfileCard.vue";
@@ -91,9 +117,13 @@ const currentUserName = ref("未登录用户");
 const selectedAiProvider = ref("xai");
 const agentName = ref("无 AI 代理");
 const agentId = ref(null);
+const agentModel = ref(null);
 const showDrawer = ref(false);
 const personalPromptVersions = ref({});
 const agentInfoObject = ref({}); // Added
+const userCardActiveNames = ref([]); // Added
+const showUserCard = ref(false); // 默认收起
+const refreshSignal = ref(Date.now()); // Added
 
 // 获取用户对应的 AI 代理
 const fetchUserAgent = async (userId) => {
@@ -107,6 +137,7 @@ const fetchUserAgent = async (userId) => {
     const response = await api.getUserAgent(userId);
     agentName.value = response.agent_name || "无 AI 代理";
     agentId.value = response.agent_id || null;
+    agentModel.value = response.agent_model || "xai";
   } catch (error) {
     console.error("获取 AI 代理失败:", error);
     agentName.value = "无 AI 代理";
@@ -140,6 +171,13 @@ const filteredUsersInfo = computed(() => {
     Object.entries(users.value).filter(([userId]) =>
       groupMembers.value.includes(userId)
     )
+  );
+});
+
+const promptVersion_term_explanation = computed(() => {
+  return (
+    personalPromptVersions.value.term_explanation?.find((p) => p.is_current)
+      ?.template_version || null
   );
 });
 
@@ -336,6 +374,12 @@ watch(agentId, async (newAgentId) => {
   }
 });
 
+// ✅ **监听 selectedAiProvider 变化**
+watch(selectedAiProvider, (newVal, oldVal) => {
+  console.log(`🎯 AI 供应商变化: ${oldVal} → ${newVal}`);
+  // 可以在此添加其他逻辑，如根据新的 AI 提供商刷新数据等
+});
+
 // ✅ **更新个人代理提示**
 const handleUpdatePersonalPrompt = async () => {
   if (!selectedUser.value || !users.value[selectedUser.value]) return;
@@ -357,6 +401,16 @@ const handleUpdatePersonalPrompt = async () => {
   }
 };
 
+const handleInsightsResponse = (insights) => {
+  console.log("📥 从 TerminologyHelper 回调回来的 insights：", insights);
+  // 你可以在这里存储或处理这些术语解释结果
+};
+
+const handleCloseQueryDialog = () => {
+  console.log("📪 ChatWindow 关闭查询弹窗，通知 TerminologyHelper 刷新");
+  refreshSignal.value = Date.now(); // 触发刷新
+};
+
 // ✅ **页面加载时获取数据**
 onMounted(() => {
   fetchGroups();
@@ -370,6 +424,18 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   background: #f7f8fc;
+}
+.dashboard-header-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 .agent-name {
   font-size: 16px;
@@ -416,6 +482,7 @@ onMounted(() => {
   display: flex;
   flex: 1;
   padding: 20px;
+  margin-top: 80px;
 }
 
 .left-panel {
@@ -444,5 +511,42 @@ onMounted(() => {
   border-radius: 10px;
   box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.1);
   margin-left: 15px;
+}
+
+.left-user-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.1);
+  margin-right: 15px;
+}
+
+.toggle-user-card-button {
+  position: fixed;
+  top: 120px;
+  left: 0;
+  z-index: 999;
+  background-color: #ffffff;
+  border: 1px solid #dcdfe6;
+  padding: 50px 5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 0 6px 6px 0;
+}
+
+.user-card-expanded {
+  width: 240px;
+  padding: 15px;
+  transition: width 0.3s ease, padding 0.3s ease;
+}
+
+.user-card-collapsed {
+  width: 0;
+  padding: 0;
+  transition: width 0.3s ease, padding 0.3s ease;
+  overflow: hidden;
 }
 </style>

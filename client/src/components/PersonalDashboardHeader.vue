@@ -1,72 +1,72 @@
 <template>
   <el-header class="dashboard-header">
-    <!-- 小组选择 -->
-    <el-select
-      v-model="localGroupId"
-      class="group-select"
-      @change="emit('selectGroup', localGroupId)"
-    >
-      <el-option
-        v-for="group in groups"
-        :key="group.id"
-        :label="group.name"
-        :value="group.id"
-      />
-    </el-select>
+    <div class="header-section">
+      <el-select
+        v-model="localGroupId"
+        class="group-select"
+        @change="emit('selectGroup', localGroupId)"
+      >
+        <el-option
+          v-for="group in groups"
+          :key="group.id"
+          :label="group.name"
+          :value="group.id"
+        />
+      </el-select>
 
-    <!-- 用户选择 -->
-    <el-select
-      v-model="localUserId"
-      placeholder="选择用户"
-      class="user-select"
-      @change="emit('selectUser', localUserId)"
-    >
-      <el-option
-        v-for="(user, userId) in filteredUsersInfo"
-        :key="userId"
-        :label="user.name"
-        :value="userId"
-      />
-    </el-select>
+      <el-select
+        v-model="localUserId"
+        placeholder="选择用户"
+        class="user-select"
+        @change="emit('selectUser', localUserId)"
+      >
+        <el-option
+          v-for="(user, userId) in filteredUsersInfo"
+          :key="userId"
+          :label="user.name"
+          :value="userId"
+        />
+      </el-select>
 
-    <!-- 更新按钮 -->
-    <el-button
-      type="success"
-      @click="emit('updatePrompt')"
-      :disabled="!localUserId"
-    >
-      Update PersonalAgent Prompt
-    </el-button>
+      <el-button
+        type="success"
+        class="update-prompt-btn"
+        @click="emit('updatePrompt')"
+        :disabled="!localUserId"
+      >
+        Update Prompt
+      </el-button>
+    </div>
 
-    <!-- 用户名 + Agent名 + Session名 -->
-    <div class="header-title">
+    <div class="header-section header-title">
       <span v-if="localUserId && users[localUserId]">
         {{ users[localUserId].name }}
-      </span>
-      <span
-        class="agent-name"
-        @click="emit('toggleDrawer')"
-        style="cursor: pointer"
-      >
-        🤖 {{ agentName }}
-        <el-icon style="color: white; margin-left: 5px"><InfoFilled /></el-icon>
       </span>
       - {{ selectedSessionTitle || "No Active Session" }}
     </div>
 
-    <!-- AI提供者选择器 -->
-    <el-select
-      v-model="agentModel"
-      class="ai-provider-select"
-      @change="handleProviderChange"
+    <span
+      class="agent-name"
+      @click="emit('toggleDrawer')"
+      style="cursor: pointer"
     >
-      <el-option
-        v-for="(label, value) in aiModelOptions"
-        :key="value"
-        :label="label"
-        :value="value"
-      />
-    </el-select>
+      🤖 {{ agentName }}
+      <el-icon style="color: white; margin-left: 5px"><InfoFilled /></el-icon>
+    </span>
+    <div class="header-section">
+      <el-select
+        v-model="agentModel"
+        class="ai-provider-select"
+        @change="handleProviderChange"
+      >
+        <el-option
+          v-for="(label, value) in aiModelOptions"
+          :key="value"
+          :label="label"
+          :value="value"
+        />
+      </el-select>
+    </div>
   </el-header>
 </template>
 
@@ -134,35 +134,57 @@ const handleProviderChange = async (newModel) => {
 
 <style scoped>
 .dashboard-header {
-  background: linear-gradient(135deg, #409eff, #2878ff);
+  background-color: #1e90ff;
   color: white;
-  padding: 16px 20px;
-  font-size: 20px;
+  padding: 12px 24px;
+  font-size: 18px;
   display: flex;
   align-items: center;
-  gap: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+.header-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .group-select,
 .user-select,
 .ai-provider-select {
-  width: 150px;
-  border-radius: 8px;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.2);
+  width: 200px;
+  font-size: 14px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.15);
   color: white;
 }
 .header-title {
-  flex-grow: 1;
+  flex: 1;
   text-align: center;
   font-size: 20px;
-  font-weight: 600;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.update-prompt-btn {
+  font-size: 14px;
+  padding: 4px 10px;
+  font-weight: 500;
+  border-radius: 6px;
 }
 .agent-name {
-  color: #fff;
+  font-size: 15px;
   font-weight: 500;
-  margin-left: 5px;
-  font-size: 16px;
+  color: #fff;
+  margin-right: 4px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
 }
 </style>

@@ -41,6 +41,11 @@ export default {
   getUserAgent(userId) {
     return axios.get(`${BASE_URL}/api/users/${userId}/agent`).then(res => res.data);
   },
+  getDiscussionInsightsByGroupAndAgent(groupId, agentId) {
+    return axios
+      .get(`${BASE_URL}/api/discussion_insights/${groupId}/agent/${agentId}`)
+      .then(res => res.data);
+  },
   updateAgenda(agendaId, data) {
     return axios.put(`${BASE_URL}/api/chat/agenda/${agendaId}`, data).then(res => res.data);
   },

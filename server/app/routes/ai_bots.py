@@ -181,22 +181,35 @@ class AIBotFeedbackRequest(BaseModel):
 @router.post("/api/ai_bots/feedback")
 async def submit_ai_bot_feedback(data: AIBotFeedbackRequest):
     """
-    提交 AI Bot 反馈。以 (user_id, bot_id, prompt_type) 为唯一标识，判断是否存在反馈。
+    提交 AI Bot 反馈。以 (user_id, bot_id, target_id, prompt_type) 为唯一标识，判断是否存在反馈。
     """
     try:
-        # 查询是否已有相同 prompt_type 的反馈（user_id, bot_id, prompt_type）
+        if not data.target_id:
+            raise HTTPException(status_code=400, detail="target_id 不能为空")
+
+        if not data.prompt_type:
+            raise HTTPException(status_code=400, detail="prompt_type 不能为空")
+
+        target_id = data.target_id
+
+        if data.prompt_type == "real_time_summary" or data.prompt_type == "cognitive_guidance":
+            target_id = data.target_id
+        else:
+            raise HTTPException(status_code=400, detail="target_id 缺失或不合法")
+
+        # 查询是否已有相同 prompt_type 的反馈（user_id, bot_id, target_id, prompt_type）
         existing = (
             supabase_client.table("ai_bot_feedback")
             .select("*")
             .eq("user_id", data.user_id)
             .eq("bot_id", data.bot_id)
+            .eq("target_id", target_id)
             .eq("prompt_type", data.prompt_type)
             .execute()
             .data
         )
 
         # 正常反馈流程
-        target_id = existing[0]["target_id"] if existing else (data.target_id or str(uuid.uuid4()))
         feedback_payload = {
             "user_id": data.user_id,
             "bot_id": data.bot_id,

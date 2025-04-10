@@ -33,7 +33,7 @@ export const createWebSocket = (groupId) => {
       // **区分不同类型的 WebSocket 消息**
       switch (receivedData.type) {
         case "message":
-          console.log("💬 新聊天消息:", receivedData.message);
+          console.log("💬 新聊天消息:", receivedData.message, "🆔 msgId:", receivedData.message?.msgId);
           messageCounterforaiSummary[groupId] += 1; // ✅ 会议总结计数 +1
           messageCounterforaiGuidance[groupId] += 1; // ✅ 认知引导计数 +1          
           break;

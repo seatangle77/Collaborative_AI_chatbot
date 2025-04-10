@@ -115,44 +115,42 @@ watch(
 
 <style scoped>
 .chat-header {
-  background: linear-gradient(135deg, #409eff, #2878ff);
+  background-color: #1e90ff;
   color: white;
-  padding: 16px 20px;
-  font-size: 20px;
+  padding: 12px 24px;
+  font-size: 18px;
   display: flex;
   align-items: center;
-  gap: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
 }
-.group-select {
-  width: 220px;
-  border-radius: 8px;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
+.group-select,
 .ai-provider-select {
-  width: 150px;
-  border-radius: 8px;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.2);
+  width: 200px;
+  font-size: 14px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.15);
   color: white;
 }
-.custom-dropdown {
-  border-radius: 10px;
-  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.15);
+.el-button {
+  font-weight: 500;
+  border-radius: 6px;
 }
 .header-title {
-  flex-grow: 1;
+  flex: 1;
   text-align: center;
-  font-size: 22px;
-  font-weight: 600;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+  font-size: 20px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 .bot-name {
-  color: #fff;
+  font-size: 15px;
   font-weight: 500;
-  margin-left: 5px;
-  font-size: 16px;
+  color: #fff;
+  margin-right: 4px;
 }
 </style>

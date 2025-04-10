@@ -7,17 +7,19 @@
       :aiBots="aiBots"
       @promptLoaded="handlePromptLoaded"
     />
-    <ChatHeader
-      :groups="groups"
-      :selectedGroupId="selectedGroupId"
-      :selectedAiProvider="selectedAiProvider"
-      :selectedGroupBot="selectedGroupBot"
-      :selectedSessionTitle="selectedSessionTitle"
-      @selectGroup="selectGroup"
-      @changeAiProvider="changeAiProvider"
-      @updatePrompt="handleUpdatePrompt"
-      @toggleDrawer="showDrawer = true"
-    />
+    <div class="chat-header-wrapper">
+      <ChatHeader
+        :groups="groups"
+        :selectedGroupId="selectedGroupId"
+        :selectedAiProvider="selectedAiProvider"
+        :selectedGroupBot="selectedGroupBot"
+        :selectedSessionTitle="selectedSessionTitle"
+        @selectGroup="selectGroup"
+        @changeAiProvider="changeAiProvider"
+        @updatePrompt="handleUpdatePrompt"
+        @toggleDrawer="showDrawer = true"
+      />
+    </div>
     <el-container class="main-content">
       <el-aside class="agenda-panel">
         <AgendaDisplay
@@ -109,11 +111,6 @@ const promptVersions = ref({}); // 新增代码
 
 // ✅ **新增计算属性 currentPromptVersion**
 const current_real_time_summary_PromptVersion = computed(() => {
-  console.log(
-    "current_real_time_summary_PromptVersion",
-    promptVersions.value["real_time_summary"]?.find((p) => p.is_current)
-      ?.template_version || null
-  );
   return (
     promptVersions.value["real_time_summary"]?.find((p) => p.is_current)
       ?.template_version || null
@@ -420,9 +417,19 @@ onMounted(() => {
   background: #f5f7fa;
 }
 
+.chat-header-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #f5f7fa;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
 /* 📌 小组选择器 */
 .agenda-panel {
-  flex: 1.2;
+  flex: 1;
 }
 .agenda-display {
   width: 100%;
@@ -478,7 +485,7 @@ onMounted(() => {
   flex-direction: row;
   flex: 1;
   padding: 20px;
-  margin-top: 10px; /* 确保议程区域有足够的空间 */
+  margin-top: 80px; /* 为 header 留出空间，避免被遮挡 */
 }
 
 /* 📌 聊天区域 */

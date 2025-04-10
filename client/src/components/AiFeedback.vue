@@ -58,6 +58,7 @@ import { ElMessage } from "element-plus";
 
 const props = defineProps({
   summaryId: String,
+  messageId: String,
   groupId: String,
   botId: String,
   model: String,
@@ -65,11 +66,14 @@ const props = defineProps({
   userId: String,
   promptType: String,
   promptVersion: String,
+  targetId: String,
 });
+
+const targetId = props.targetId;
 
 const isReady = computed(() => {
   return (
-    props.summaryId &&
+    props.targetId &&
     props.groupId &&
     props.botId &&
     props.model &&
@@ -93,7 +97,7 @@ const fetchLatestFeedback = async (skipIfEmpty = false) => {
     const response = await api.getBotFeedback({
       user_id: props.userId,
       bot_id: props.botId,
-      target_id: props.summaryId,
+      target_id: props.targetId,
       prompt_type: props.promptType,
     });
 
@@ -128,9 +132,9 @@ watch(
 );
 
 watch(
-  () => [props.summaryId, props.userId, props.botId],
-  ([newSummaryId, newUserId, newBotId]) => {
-    if (newSummaryId && newUserId && newBotId) {
+  () => [props.targetId, props.userId, props.botId],
+  ([newTargetId, newUserId, newBotId]) => {
+    if (newTargetId && newUserId && newBotId) {
       console.log("🕵️ Props became ready, re-fetching feedback...");
       fetchLatestFeedback();
     }
@@ -172,6 +176,7 @@ const handleFeedback = async (type) => {
         type === "dislike" ? !isCancelling : currentFeedback.value.dislike,
       comment_text: currentFeedback.value.comment_text,
       prompt_version: props.promptVersion,
+      target_id: props.targetId,
     });
 
     currentFeedback.value.like =
@@ -206,6 +211,7 @@ const submitComment = async () => {
       dislike: currentFeedback.value.dislike,
       comment_text: comment.value,
       prompt_version: props.promptVersion,
+      target_id: props.targetId,
     });
 
     ElMessage.success("Comment submitted");
@@ -274,8 +280,8 @@ const submitComment = async () => {
 }
 
 .selected-like {
-  background-color: #e6f7ff;
-  color: #007aff;
+  background-color: #e6f4ea;
+  color: #219653;
 }
 
 .selected-dislike {
@@ -290,7 +296,7 @@ const submitComment = async () => {
 }
 
 .feedback-status .like-text {
-  color: #007aff;
+  color: #219653;
   font-weight: 500;
 }
 
