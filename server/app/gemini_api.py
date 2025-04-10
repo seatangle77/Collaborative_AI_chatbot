@@ -2,7 +2,7 @@ import os
 import json
 import requests
 from dotenv import load_dotenv
-from app.prompt_loader import get_prompt_from_database
+from .database import supabase_client
 from google import genai
 
 
@@ -19,25 +19,39 @@ def generate_ai_response(bot_id: str, main_prompt: str, history_prompt: str = No
     使用 google-genai 官方 Client 接口调用 Gemini 模型（标准推荐用法）
     """
     try:
-        # ✅ 获取 prompt 数据
-        if prompt_type == "term_explanation":
-            if not agent_id:
-                raise ValueError("term_explanation 类型必须提供 agent_id")
-            prompt_data = get_prompt_from_database(
-                bot_id=agent_id,
-                prompt_type=prompt_type,
-                agent_id=agent_id
-            )
-        else:
+        # ✅ 从新版表获取 prompt 数据
+        if prompt_type in ["real_time_summary", "cognitive_guidance", "summary_to_knowledge"]:
             if not bot_id:
-                raise ValueError("非 term_explanation 类型必须提供 bot_id")
-            prompt_data = get_prompt_from_database(
-                bot_id=bot_id,
-                prompt_type=prompt_type,
-                agent_id=agent_id
-            )
-        max_words = prompt_data.get("max_words", 100)
-        system_prompt = prompt_data.get("system_prompt", "").replace("{max_words}", str(max_words))
+                raise ValueError(f"{prompt_type} 类型必须提供 bot_id")
+            table = "ai_prompt_versions"
+            id_field = "ai_bot_id"
+            id_value = bot_id
+        elif prompt_type in ["term_explanation", "knowledge_followup"]:
+            if not agent_id:
+                raise ValueError(f"{prompt_type} 类型必须提供 agent_id")
+            table = "agent_prompt_versions"
+            id_field = "agent_id"
+            id_value = agent_id
+        else:
+            raise ValueError(f"❌ Unsupported prompt_type: {prompt_type}")
+
+        response = (
+            supabase_client.table(table)
+            .select("rendered_prompt")
+            .eq(id_field, id_value)
+            .eq("prompt_type", prompt_type)
+            .eq("is_active", True)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        if not response.data or len(response.data) == 0:
+            raise ValueError(f"❌ No active prompt found for {prompt_type}")
+
+        system_prompt = response.data[0]["rendered_prompt"]
+        max_words = 150 if prompt_type == "real_time_summary" else 100
+        system_prompt = system_prompt.replace("{max_words}", str(max_words))
 
         # ✅ 构造用户内容
         if prompt_type == "real_time_summary":

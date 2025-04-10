@@ -2,13 +2,18 @@
   <el-card class="summary-panel">
     <div class="summary-header">
       <span class="summary-title">✨ AI Real-Time Summary</span>
-      <el-tag type="info" class="summary-status" v-if="!parsedSummary">
+      <el-tag
+        type="info"
+        class="summary-status"
+        v-if="!parsedSummary && !errorText"
+      >
         Processing...
       </el-tag>
     </div>
 
-    <!-- 🔹 AI 处理中 -->
-    <p v-if="!parsedSummary" class="loading-text">
+    <!-- 🔹 AI 处理中 / 错误展示 -->
+    <p v-if="errorText" class="error-text">⚠️ {{ errorText }}</p>
+    <p v-if="isLoading && !parsedSummary && !errorText" class="loading-text">
       AI is analyzing the discussion...
     </p>
 
@@ -47,25 +52,64 @@
           {{ issue }}
         </li>
       </ul>
+      <ai-feedback
+        :group-id="groupId"
+        :session-id="sessionId"
+        :bot-id="botId"
+        :user-id="userId"
+        :model="currentBotModel"
+        :prompt-type="promptType"
+        :prompt-version="promptVersion"
+      />
     </div>
   </el-card>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, computed } from "vue";
 import api from "../services/apiService";
+import AiFeedback from "./AiFeedback.vue";
 
 const props = defineProps({
   discussion_summary: Array,
   groupId: String,
+  sessionId: String,
+  botId: String,
+  userId: String,
+  model: String,
+  promptType: String,
+  promptVersion: String,
+  usersInfo: Object,
+  selectedGroupBot: Object,
+  aiBots: Array,
 });
 
 const parsedSummary = ref(null);
+const errorText = ref("");
+const isLoading = ref(false); // 新增状态变量
+
+const latestSummaryId = computed(() => {
+  const summaries = props.discussion_summary;
+  if (!summaries || summaries.length === 0) return null;
+
+  let latest = summaries[summaries.length - 1];
+  if (Array.isArray(latest)) latest = latest[0];
+  return latest?.id || null;
+});
+
+// 新增：当前机器人模型
+const currentBotModel = computed(() => props.selectedGroupBot?.model || "");
 
 // ✅ **解析 AI 会议总结**
 const parseAiSummary = (insightText) => {
-  if (!insightText || typeof insightText !== "string") {
-    console.warn("⚠️ AI summary is empty or not a string:", insightText);
+  if (
+    typeof insightText !== "string" ||
+    insightText.includes("AI 生成失败") ||
+    insightText.includes("未知的 AI 提供商") ||
+    insightText.includes("Server not responding")
+  ) {
+    console.warn("⚠️ Invalid summary text:", insightText);
+    errorText.value = insightText;
     parsedSummary.value = null;
     return;
   }
@@ -84,6 +128,11 @@ const parseAiSummary = (insightText) => {
       cleanedText = cleanedText.replace(/^```json\n/, "").replace(/\n```$/, "");
     }
 
+    // 新增：去掉 JSON string 包裹字符
+    if (cleanedText.startsWith('"') && cleanedText.endsWith('"')) {
+      cleanedText = cleanedText.slice(1, -1);
+    }
+
     // ✅ 新增：去掉转义斜杠
     cleanedText = cleanedText.replace(/\\"/g, '"');
 
@@ -96,6 +145,7 @@ const parseAiSummary = (insightText) => {
         suggestions: parsedJson.summary.suggestions || [],
         unresolved_issues: parsedJson.summary.unresolved_issues || [],
       };
+      errorText.value = "";
     } else {
       console.warn("⚠️ AI summary format incorrect:", parsedJson);
     }
@@ -108,13 +158,22 @@ const parseAiSummary = (insightText) => {
 // ✅ **RESTful API 获取最新 AI Summary**
 const fetchLatestSummary = async (groupId) => {
   if (!groupId) return;
+  isLoading.value = true; // 开始加载时设置为 true
   try {
     const summaries = await api.fetchLatestSummary(groupId);
     if (summaries.length > 0) {
-      parseAiSummary(summaries[0].summary_text);
+      const summaryText = summaries[0].summary_text;
+      if (typeof summaryText === "string") {
+        parseAiSummary(summaryText);
+      } else {
+        console.warn("⚠️ summary_text is not a string:", summaryText);
+        parsedSummary.value = null;
+      }
     }
   } catch (error) {
     console.error("❌ Failed to fetch AI summary:", error);
+  } finally {
+    isLoading.value = false; // 结束时设置为 false
   }
 };
 
@@ -142,10 +201,32 @@ watch(
         return;
       }
 
-      parseAiSummary(latestSummary.summary_text);
+      const summaryText = latestSummary.summary_text;
+      if (typeof summaryText === "string") {
+        parseAiSummary(summaryText);
+      } else {
+        console.warn("⚠️ summary_text is not a string:", summaryText);
+        parsedSummary.value = null;
+      }
     } catch (error) {
       console.error("❌ Failed to parse AI JSON response:", error);
       parsedSummary.value = null;
+    }
+  },
+  { deep: true, immediate: true }
+);
+
+// 替换复合 watch 语句
+watch(
+  () => props.discussion_summary,
+  (newSummary) => {
+    if (
+      Array.isArray(newSummary) &&
+      newSummary.length > 0 &&
+      typeof newSummary.at(-1)?.summary_text === "string"
+    ) {
+      console.log("✅ Summary changed, re-parse latest summary");
+      parseAiSummary(newSummary.at(-1).summary_text);
     }
   },
   { deep: true, immediate: true }
@@ -191,6 +272,14 @@ onMounted(() => {
 .loading-text {
   font-size: 14px;
   color: #aaa;
+  text-align: center;
+  padding: 10px 0;
+}
+
+/* 🔹 错误文本 */
+.error-text {
+  color: #e53935;
+  font-size: 14px;
   text-align: center;
   padding: 10px 0;
 }

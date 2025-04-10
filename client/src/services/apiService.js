@@ -82,4 +82,22 @@ export default {
     const url = `${BASE_URL}/api/personal_prompt_versions/${agentId}`;
     return axios.get(url).then(res => res.data);
   },
+  getBotModel(botId) {
+    return axios.get(`${BASE_URL}/api/ai_bots/${botId}/model`).then(res => res.data);
+  },
+  updateBotModel(botId, model) {
+    return axios.put(`${BASE_URL}/api/ai_bots/${botId}/model`, { model }).then(res => res.data);
+  },
+  getAgentModel(agentId) {
+    return axios.get(`${BASE_URL}/api/personal_agents/${agentId}`).then(res => res.data);
+  },
+  updateAgentModel(agentId, model) {
+    return axios.put(`${BASE_URL}/api/personal_agents/${agentId}/model`, { model }).then(res => res.data);
+  },
+  submitBotFeedback(payload) {
+    return axios.post(`${BASE_URL}/api/ai_bots/feedback`, payload).then(res => res.data);
+  },
+  getBotFeedback(query) {
+    return axios.get(`${BASE_URL}/api/ai_bots/feedback`, { params: query }).then(res => res.data);
+  },
 };

@@ -5,58 +5,20 @@
       @update:model-value="(val) => (showDrawer = val)"
       :groupId="selectedGroupId"
       :aiBots="aiBots"
+      @promptLoaded="handlePromptLoaded"
     />
-    <!-- 📌 头部优化 -->
-    <el-header class="chat-header">
-      <!-- ✅ 小组选择器 -->
-      <el-select
-        v-model="selectedGroupId"
-        class="group-select"
-        popper-class="custom-dropdown"
-        @change="selectGroup"
-      >
-        <el-option
-          v-for="group in groups"
-          :key="group.id"
-          :label="group.name"
-          :value="group.id"
-        />
-      </el-select>
-      <el-button
-        type="success"
-        @click="handleUpdatePrompt"
-        :disabled="!selectedGroupId"
-      >
-        Update GroupBot Prompt
-      </el-button>
-
-      <!-- ✅ 标题 -->
-      <div class="header-title">
-        {{ selectedSessionTitle || "No Active Session" }}
-      </div>
-      <el-button link @click="showDrawer = true">
-        <span v-if="selectedGroupBot" class="bot-name"
-          >🤖 {{ selectedGroupBot.name }}</span
-        >
-        <el-icon style="color: white; margin-left: 5px"><InfoFilled /></el-icon>
-      </el-button>
-
-      <!-- ✅ AI 供应商选择器 -->
-      <el-select
-        v-model="selectedAiProvider"
-        class="ai-provider-select"
-        popper-class="custom-dropdown"
-        @change="changeAiProvider"
-      >
-        <el-option label="Grok-2" value="xai" />
-        <el-option label="GPT-4o" value="hkust_gz" />
-        <el-option label="Genmini-2.5-pro" value="gemini" />
-      </el-select>
-    </el-header>
-
-    <!-- 📌 主体 -->
+    <ChatHeader
+      :groups="groups"
+      :selectedGroupId="selectedGroupId"
+      :selectedAiProvider="selectedAiProvider"
+      :selectedGroupBot="selectedGroupBot"
+      :selectedSessionTitle="selectedSessionTitle"
+      @selectGroup="selectGroup"
+      @changeAiProvider="changeAiProvider"
+      @updatePrompt="handleUpdatePrompt"
+      @toggleDrawer="showDrawer = true"
+    />
     <el-container class="main-content">
-      <!-- 📌 左侧议程 -->
       <el-aside class="agenda-panel">
         <AgendaDisplay
           :agendas="chatAgendas"
@@ -70,7 +32,6 @@
         />
       </el-aside>
 
-      <!-- ✅ 聊天窗口 & AI 实时总结 -->
       <el-main class="chat-area">
         <ChatWindow
           :messages="messages"
@@ -81,6 +42,8 @@
           :sessionId="selectedSessionId"
           :userId="selectedUser"
           :aiProvider="selectedAiProvider"
+          :botId="selectedGroupBot?.id"
+          :promptVersion="promptVersions_cognitive_guidance"
         />
         <MessageInput
           :users="filteredUsersInfo"
@@ -89,11 +52,16 @@
         />
       </el-main>
 
-      <!-- ✅ AI 实时会议总结 -->
       <el-aside class="realtime-summary">
         <RealTimeSummary
           :discussion_summary="chatSummaries"
           :groupId="selectedGroupId"
+          :sessionId="selectedSessionId"
+          :selectedGroupBot="selectedGroupBot"
+          promptType="real_time_summary"
+          :promptVersion="promptVersions_real_time_summary"
+          :userId="selectedUser"
+          :botId="selectedGroupBot?.id"
         />
       </el-aside>
     </el-container>
@@ -102,6 +70,7 @@
 
 <script setup>
 import AiBotDrawer from "../components/AiBotDrawer.vue";
+import ChatHeader from "../components/ChatHeader.vue";
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import api from "../services/apiService";
 import ChatWindow from "../components/ChatWindow.vue";
@@ -136,6 +105,35 @@ const selectedGroupBot = computed(() =>
   aiBots.value.find((bot) => bot.group_id === selectedGroupId.value)
 ); // 新增计算属性
 const showDrawer = ref(false); // 新增代码
+const promptVersions = ref({}); // 新增代码
+
+// ✅ **新增计算属性 currentPromptVersion**
+const current_real_time_summary_PromptVersion = computed(() => {
+  console.log(
+    "current_real_time_summary_PromptVersion",
+    promptVersions.value["real_time_summary"]?.find((p) => p.is_current)
+      ?.template_version || null
+  );
+  return (
+    promptVersions.value["real_time_summary"]?.find((p) => p.is_current)
+      ?.template_version || null
+  );
+});
+// ✅ **新增计算属性 promptVersions_cognitive_guidance**
+const promptVersions_cognitive_guidance = computed(() => {
+  return (
+    promptVersions.value.cognitive_guidance?.find((p) => p.is_current)
+      ?.template_version || null
+  );
+});
+
+// ✅ **新增计算属性 promptVersions_real_time_summary**
+const promptVersions_real_time_summary = computed(() => {
+  return (
+    promptVersions.value.real_time_summary?.find((p) => p.is_current)
+      ?.template_version || null
+  );
+});
 
 // ✅ **切换 AI 供应商时自动触发 AI 会议总结**
 const changeAiProvider = () => {
@@ -399,6 +397,13 @@ const handleUpdatePrompt = async () => {
   }
 };
 
+// ✅ **处理 Prompt 加载**
+const handlePromptLoaded = (payload) => {
+  console.log("📥 Prompt versions loaded from AiBotDrawer:", payload);
+  const { botId, ...versions } = payload;
+  promptVersions.value = versions; // ✅ 正确处理结构，去掉 botId
+};
+
 // ✅ **页面加载时获取小组信息**
 onMounted(() => {
   fetchGroups();
@@ -415,53 +420,7 @@ onMounted(() => {
   background: #f5f7fa;
 }
 
-/* 📌 头部样式 */
-.chat-header {
-  background: linear-gradient(135deg, #409eff, #2878ff);
-  color: white;
-  padding: 16px 20px;
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
 /* 📌 小组选择器 */
-.group-select {
-  width: 220px;
-  border-radius: 8px;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  transition: background 0.3s ease;
-}
-
-.ai-provider-select {
-  width: 150px;
-  border-radius: 8px;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  transition: background 0.3s ease;
-}
-
-/* ✅ 下拉菜单优化 */
-.custom-dropdown {
-  border-radius: 10px;
-  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* 📌 标题 */
-.header-title {
-  flex-grow: 1;
-  text-align: center;
-  font-size: 22px;
-  font-weight: 600;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-/* 📌 议程区域 */
 .agenda-panel {
   flex: 1.2;
 }
@@ -541,17 +500,5 @@ onMounted(() => {
   border-radius: 10px;
   box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.08);
   margin-left: 15px;
-}
-
-.bot-name {
-  color: #fff;
-  font-weight: 500;
-  margin-left: 5px;
-  font-size: 16px;
-}
-</style>
-<style>
-.el-card__body {
-  padding-top: 0px !important;
 }
 </style>

@@ -1,73 +1,21 @@
 <template>
   <el-container class="dashboard-container">
-    <!-- 📌 头部 -->
-    <el-header class="dashboard-header">
-      <!-- ✅ 小组选择 -->
-      <el-select
-        v-model="selectedGroupId"
-        class="group-select"
-        @change="selectGroup"
-      >
-        <el-option
-          v-for="group in groups"
-          :key="group.id"
-          :label="group.name"
-          :value="group.id"
-        />
-      </el-select>
-
-      <!-- ✅ 用户选择（仅显示当前小组的用户） -->
-      <el-select
-        v-model="selectedUser"
-        placeholder="选择用户"
-        class="user-select"
-      >
-        <el-option
-          v-for="(user, userId) in filteredUsersInfo"
-          :key="userId"
-          :label="user.name"
-          :value="userId"
-        />
-      </el-select>
-
-      <el-button
-        type="success"
-        @click="handleUpdatePersonalPrompt"
-        :disabled="!selectedUser"
-        style="margin-left: 12px; margin-left: -4%"
-      >
-        Update PersonalAgent Prompt
-      </el-button>
-
-      <!-- ✅ 标题：当前用户 + Session 名称 -->
-      <div class="header-title">
-        <span v-if="selectedUser && users[selectedUser]">
-          {{ users[selectedUser].name }}
-        </span>
-        <span
-          class="agent-name"
-          @click="showDrawer = true"
-          style="cursor: pointer"
-        >
-          🤖 {{ agentName }}
-          <el-icon style="color: white; margin-left: 5px"
-            ><InfoFilled
-          /></el-icon>
-        </span>
-        - {{ selectedSessionTitle || "No Active Session" }}
-      </div>
-
-      <!-- ✅ AI 供应商选择器 -->
-      <el-select
-        v-model="selectedAiProvider"
-        class="ai-provider-select"
-        @change="changeAiProvider"
-      >
-        <el-option label="Grok-2" value="xai" />
-        <el-option label="GPT-4o" value="hkust_gz" />
-        <el-option label="Genmini-2.5-pro" value="gemini" />
-      </el-select>
-    </el-header>
+    <PersonalDashboardHeader
+      :groups="groups"
+      :selectedGroupId="selectedGroupId"
+      :selectedUser="selectedUser"
+      :users="users"
+      :filteredUsersInfo="filteredUsersInfo"
+      :selectedSessionTitle="selectedSessionTitle"
+      :agentName="agentName"
+      :selectedAiProvider="selectedAiProvider"
+      :agentInfo="agentInfoObject"
+      @selectGroup="selectGroup"
+      @selectUser="(val) => (selectedUser = val)"
+      @updatePrompt="handleUpdatePersonalPrompt"
+      @changeAiProvider="changeAiProvider"
+      @toggleDrawer="showDrawer = true"
+    />
 
     <!-- 📌 主体 -->
     <el-container class="main-content">
@@ -120,6 +68,7 @@ import TerminologyHelper from "../personal_device/TerminologyHelper.vue";
 import ReminderPanel from "../personal_device/ReminderPanel.vue";
 import UserProfileCard from "../components/UserProfileCard.vue";
 import PersonalAgentDrawer from "../components/PersonalAgentDrawer.vue";
+import PersonalDashboardHeader from "../components/PersonalDashboardHeader.vue";
 import {
   createWebSocket,
   onMessageReceived,
@@ -144,6 +93,7 @@ const agentName = ref("无 AI 代理");
 const agentId = ref(null);
 const showDrawer = ref(false);
 const personalPromptVersions = ref({});
+const agentInfoObject = ref({}); // Added
 
 // 获取用户对应的 AI 代理
 const fetchUserAgent = async (userId) => {
@@ -359,10 +309,15 @@ watch(selectedGroupId, async (newGroupId) => {
 // ✅ **监听用户变化**
 watch(
   selectedUser,
-  (newUserId) => {
+  async (newUserId) => {
     if (newUserId && users.value[newUserId]) {
       currentUserName.value = users.value[newUserId];
-      fetchUserAgent(newUserId);
+      await fetchUserAgent(newUserId);
+      const agentInfo = await api.getAgentModel(agentId.value);
+      if (agentInfo && agentInfo.model) {
+        selectedAiProvider.value = agentInfo.model;
+        agentInfoObject.value = agentInfo; // Added
+      }
     }
   },
   { immediate: true }

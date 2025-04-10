@@ -81,7 +81,8 @@ export const createWebSocket = (groupId) => {
   socket.onclose = () => {
     console.log(`⚠️ WebSocket 连接关闭: Group ${groupId}`);
     delete sockets[groupId];
-    delete messageCounter[groupId];
+    delete messageCounterforaiSummary[groupId];
+    delete messageCounterforaiGuidance[groupId];
   };
 
   socket.onerror = (error) => {
@@ -133,5 +134,6 @@ export const closeWebSocket = (groupId) => {
     sockets[groupId].close();
     delete sockets[groupId];
     delete messageCounterforaiSummary[groupId];
-    delete messageCounterforaiGuidance[groupId];  }
+    delete messageCounterforaiGuidance[groupId];  
+  }
 };

@@ -16,6 +16,24 @@
             <div class="sender">{{ getSenderName(msg) }}</div>
             <div class="message-content">{{ msg.message }}</div>
             <div class="timestamp">{{ formatTimestamp(msg.created_at) }}</div>
+            <div class="ai-feedback-wrapper">
+              <AiFeedback
+                v-if="
+                  groupId &&
+                  sessionId &&
+                  userId &&
+                  botId &&
+                  getBotModel(msg.chatbot_id)
+                "
+                :groupId="groupId"
+                :sessionId="sessionId"
+                :userId="userId"
+                :botId="botId"
+                :model="getBotModel(msg.chatbot_id)"
+                promptType="cognitive_guidance"
+                :promptVersion="promptVersion"
+              />
+            </div>
           </div>
         </template>
         <template v-else>
@@ -93,6 +111,7 @@
 import { ref, nextTick, watch, computed } from "vue";
 import api from "../services/apiService";
 import UserInfoPopover from "./UserInfoPopover.vue";
+import AiFeedback from "./AiFeedback.vue";
 
 const props = defineProps({
   messages: Array,
@@ -104,6 +123,8 @@ const props = defineProps({
   userId: String, // ✅ 新增 userId
   aiProvider: String, // ✅ 新增 aiProvider
   agentId: String, // ✅ 新增 agentId
+  botId: String, // ✅ 新增 botId，用于统一传入的 AI 机器人 ID
+  promptVersion: String,
 });
 
 // ✅ 选中的文本
@@ -229,6 +250,12 @@ const querySelectedText = async () => {
   }
 
   showQueryButton.value = false; // 关闭查询按钮
+};
+
+// ✅ 获取机器人模型
+const getBotModel = (botId) => {
+  const bot = props.aiBots?.find((b) => b.id === botId);
+  return bot?.model || "unknown";
 };
 </script>
 
@@ -376,5 +403,13 @@ const querySelectedText = async () => {
   color: #aaa;
   align-self: flex-end;
   margin-top: 4px;
+}
+
+/* 新增 AI 反馈样式 */
+.ai-feedback-wrapper {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: -10px;
+  margin-bottom: 3px;
 }
 </style>

@@ -36,7 +36,7 @@
 
     <!-- ✅ 发送按钮 -->
     <el-button type="primary" @click="handleSend" size="large" class="send-btn">
-      发送
+      Send
     </el-button>
   </div>
 </template>

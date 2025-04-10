@@ -113,7 +113,7 @@ const props = defineProps({
   aiBots: Array,
 });
 
-const emit = defineEmits(["update:visible"]);
+const emit = defineEmits(["update:visible", "promptLoaded"]);
 
 const bot = ref(null);
 
@@ -168,29 +168,27 @@ watch(
   [() => props.groupId, () => props.aiBots],
   async ([newGroupId, bots]) => {
     const matchedBot = bots.find((b) => b.group_id === newGroupId);
-    console.log("🌀 Group ID changed:", newGroupId);
-    console.log("🤖 Matched Bot:", matchedBot);
 
     if (newGroupId && matchedBot) {
       bot.value = matchedBot;
       const botId = matchedBot.id;
       try {
-        promptVersions.value.cognitive_guidance = await api.getPromptVersions(
+        const cg = await api.getPromptVersions(botId, "cognitive_guidance");
+        const rs = await api.getPromptVersions(botId, "real_time_summary");
+        const sk = await api.getPromptVersions(botId, "summary_to_knowledge");
+
+        emit("promptLoaded", {
           botId,
-          "cognitive_guidance",
-          null
-        );
-        promptVersions.value.real_time_summary = await api.getPromptVersions(
-          botId,
-          "real_time_summary",
-          null
-        );
-        promptVersions.value.summary_to_knowledge = await api.getPromptVersions(
-          botId,
-          "summary_to_knowledge",
-          null
-        );
-        console.log("✅ Prompt versions loaded:", promptVersions.value);
+          cognitive_guidance: cg,
+          real_time_summary: rs,
+          summary_to_knowledge: sk,
+        });
+
+        promptVersions.value = {
+          cognitive_guidance: cg,
+          real_time_summary: rs,
+          summary_to_knowledge: sk,
+        };
       } catch (e) {
         console.error("❌ Failed to load prompt versions:", e);
       }
