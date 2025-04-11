@@ -29,6 +29,16 @@
             {{ example }}
           </li>
         </ul>
+        <div class="ai-feedback-wrapper" style="margin-top: 12px">
+          <AgentFeedback
+            v-if="agentId && term.insight_id"
+            :agentId="agentId"
+            :targetId="term.insight_id"
+            :aiModel="props.agentModel"
+            promptType="terminology_explanation"
+            :promptVersion="promptVersion_term_explanation"
+          />
+        </div>
       </el-collapse-item>
     </el-collapse>
   </el-card>
@@ -36,6 +46,7 @@
 <script setup>
 import { ref, defineProps, onMounted, watch } from "vue";
 import apiService from "../services/apiService";
+import AgentFeedback from "../components/AgentFeedback.vue";
 
 const props = defineProps({
   groupId: {
@@ -52,6 +63,14 @@ const props = defineProps({
   },
   refreshSignal: {
     type: [Number, String],
+    required: false,
+  },
+  agentModel: {
+    type: String,
+    required: false,
+  },
+  promptVersion_term_explanation: {
+    type: String,
     required: false,
   },
 });
@@ -77,6 +96,7 @@ const fetchTerm = async () => {
         const parsed = JSON.parse(cleanText);
         return {
           term_name: insight.term_name || "未命名术语",
+          insight_id: insight.insight_id,
           ...parsed.term_explanation,
         };
       } catch (e) {
@@ -132,6 +152,13 @@ watch(
       console.log("🔁 检测到 refreshSignal 变更，重新拉取术语");
       fetchTerm();
     }
+  }
+);
+
+watch(
+  () => props.agentModel,
+  (newVal, oldVal) => {
+    console.log("🧠 agentModel 变更:", oldVal, "➡", newVal);
   }
 );
 </script>

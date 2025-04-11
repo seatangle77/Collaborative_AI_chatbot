@@ -105,4 +105,10 @@ export default {
   getBotFeedback(query) {
     return axios.get(`${BASE_URL}/api/ai_bots/feedback`, { params: query }).then(res => res.data);
   },
+  submitAgentFeedback(payload) {
+    return axios.post(`${BASE_URL}/api/ai_agents/feedback`, payload).then(res => res.data);
+  },
+  getAgentFeedback(query) {
+    return axios.get(`${BASE_URL}/api/ai_agents/feedback`, { params: query }).then(res => res.data);
+  },
 };

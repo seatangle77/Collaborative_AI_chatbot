@@ -66,6 +66,8 @@
           v-if="selectedGroupId && agentId"
           :groupId="selectedGroupId"
           :agentId="agentId"
+          :agentModel="selectedAiProvider"
+          :promptVersion_term_explanation="promptVersion_term_explanation"
           :refreshSignal="refreshSignal"
           @insightsResponse="handleInsightsResponse"
           @onCloseQueryDialog="handleCloseQueryDialog"
