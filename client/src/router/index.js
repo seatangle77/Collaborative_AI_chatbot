@@ -13,6 +13,11 @@ const routes = [
     name: "PersonalDashboard",
     component: PersonalDashboard,
   },
+  {
+    path: "/meeting",
+    name: "MeetingView",
+    component: () => import("../views/MeetingView.vue"),
+  }
 ];
 
 const router = createRouter({

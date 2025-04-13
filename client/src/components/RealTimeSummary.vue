@@ -53,7 +53,7 @@
         </li>
       </ul>
       <ai-feedback
-        :key="latestSummaryId"
+        :key="feedbackKey"
         :group-id="groupId"
         :session-id="sessionId"
         :bot-id="botId"
@@ -89,17 +89,9 @@ const props = defineProps({
 const parsedSummary = ref(null);
 const errorText = ref("");
 const isLoading = ref(false); // 新增状态变量
+const feedbackKey = ref(Date.now());
+const latestSummaryId = ref(null); // Changed from computed to ref
 
-const latestSummaryId = computed(() => {
-  const summaries = props.discussion_summary;
-  if (!summaries || summaries.length === 0) return null;
-
-  let latest = summaries[summaries.length - 1];
-  if (Array.isArray(latest)) latest = latest[0];
-  return latest?.id || null;
-});
-
-// 新增：当前机器人模型
 const currentBotModel = computed(() => props.selectedGroupBot?.model || "");
 
 // ✅ **解析 AI 会议总结**
@@ -110,7 +102,6 @@ const parseAiSummary = (insightText) => {
     insightText.includes("未知的 AI 提供商") ||
     insightText.includes("Server not responding")
   ) {
-    console.warn("⚠️ Invalid summary text:", insightText);
     errorText.value = insightText;
     parsedSummary.value = null;
     return;
@@ -120,7 +111,6 @@ const parseAiSummary = (insightText) => {
     let cleanedText = insightText.trim();
 
     if (cleanedText.startsWith("❌ AI 生成失败")) {
-      console.warn("⚠️ AI 生成失败:", cleanedText);
       parsedSummary.value = null;
       return;
     }
@@ -164,7 +154,10 @@ const fetchLatestSummary = async (groupId) => {
   try {
     const summaries = await api.fetchLatestSummary(groupId);
     if (summaries.length > 0) {
-      const summaryText = summaries[0].summary_text;
+      const latestSummary = summaries[0];
+      latestSummaryId.value = latestSummary.id;
+      feedbackKey.value = latestSummary.id;
+      const summaryText = latestSummary.summary_text;
       if (typeof summaryText === "string") {
         parseAiSummary(summaryText);
       } else {
@@ -179,12 +172,28 @@ const fetchLatestSummary = async (groupId) => {
   }
 };
 
+const fetchLatestSummaryId = async (groupId) => {
+  if (!groupId) return;
+  try {
+    const summaries = await api.fetchLatestSummary(groupId);
+    if (summaries.length > 0) {
+      const latestSummary = summaries[0];
+      if (latestSummary?.id) {
+        feedbackKey.value = latestSummary.id;
+        latestSummaryId.value = latestSummary.id; // Added this line
+        parsedSummary.value = { ...parsedSummary.value }; // Force re-evaluation of the DOM
+      }
+    }
+  } catch (error) {
+    console.error("❌ Failed to fetch latest summary ID:", error);
+  }
+};
+
 // ✅ **监听 WebSocket 或 API 更新**
 watch(
   () => props.discussion_summary,
   (newSummary) => {
     if (!newSummary || newSummary.length === 0) {
-      console.warn("⚠️ No AI summary data available.");
       parsedSummary.value = null;
       return;
     }
@@ -198,7 +207,6 @@ watch(
       }
 
       if (!latestSummary || !latestSummary.summary_text) {
-        console.warn("⚠️ summary_text is empty:", latestSummary);
         parsedSummary.value = null;
         return;
       }
@@ -206,8 +214,8 @@ watch(
       const summaryText = latestSummary.summary_text;
       if (typeof summaryText === "string") {
         parseAiSummary(summaryText);
+        feedbackKey.value = Date.now();
       } else {
-        console.warn("⚠️ summary_text is not a string:", summaryText);
         parsedSummary.value = null;
       }
     } catch (error) {
@@ -227,8 +235,7 @@ watch(
       newSummary.length > 0 &&
       typeof newSummary.at(-1)?.summary_text === "string"
     ) {
-      console.log("✅ Summary changed, re-parse latest summary");
-      parseAiSummary(newSummary.at(-1).summary_text);
+      fetchLatestSummaryId(props.groupId);
     }
   },
   { deep: true, immediate: true }

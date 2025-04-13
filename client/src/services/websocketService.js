@@ -63,7 +63,7 @@ export const createWebSocket = (groupId) => {
       }
 
       // **每 5 条消息后触发 AI 认知引导**
-      if (messageCounterforaiGuidance[groupId] >= 5) {
+      if (messageCounterforaiGuidance[groupId] >= 3) {
         console.log(`🚀 触发 AI 认知引导: Group ${groupId}`);
         sendMessage(groupId, { type: "trigger_ai_guidance" });
         messageCounterforaiGuidance[groupId] = 0; // ✅ 重置计数

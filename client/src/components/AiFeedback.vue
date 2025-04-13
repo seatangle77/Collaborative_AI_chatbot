@@ -132,21 +132,50 @@ watch(
 );
 
 watch(
-  () => [props.targetId, props.userId, props.botId],
-  ([newTargetId, newUserId, newBotId]) => {
-    if (newTargetId && newUserId && newBotId) {
-      console.log("🕵️ Props became ready, re-fetching feedback...");
+  () => ({
+    targetId: props.targetId,
+    userId: props.userId,
+    botId: props.botId,
+    groupId: props.groupId,
+    promptType: props.promptType,
+    promptVersion: props.promptVersion,
+  }),
+  (newProps) => {
+    if (
+      newProps.targetId &&
+      newProps.userId &&
+      newProps.botId &&
+      newProps.groupId &&
+      newProps.promptType &&
+      newProps.promptVersion
+    ) {
       fetchLatestFeedback();
     }
   },
-  { immediate: true }
+  { immediate: true, deep: true }
+);
+
+watch(
+  () => props.targetId,
+  (newVal, oldVal) => {
+    if (newVal && newVal !== oldVal) {
+      console.log("📌 targetId changed:", oldVal, "→", newVal);
+      fetchLatestFeedback();
+    }
+  }
+);
+
+watch(
+  () => props.targetId,
+  (newVal, oldVal) => {
+    console.log("🔁 AiFeedback targetId updated:", oldVal, "→", newVal);
+  }
 );
 
 watch(
   isReady,
   (ready) => {
     if (ready) {
-      console.log("✅ isReady triggered fetch");
       fetchLatestFeedback();
     }
   },
@@ -154,6 +183,14 @@ watch(
 );
 
 onMounted(() => {
+  console.log("🧩 AiFeedback mounted with props:", {
+    targetId: props.targetId,
+    botId: props.botId,
+    sessionId: props.sessionId,
+    userId: props.userId,
+    promptType: props.promptType,
+    promptVersion: props.promptVersion,
+  });
   fetchLatestFeedback();
 });
 

@@ -20,8 +20,21 @@
         @toggleDrawer="showDrawer = true"
       />
     </div>
+    <el-button
+      @click="showAgendaPanel = !showAgendaPanel"
+      size="default"
+      class="toggle-user-card-button"
+    >
+      <el-icon style="font-size: 20px">
+        <component :is="showAgendaPanel ? DArrowLeft : DArrowRight" />
+      </el-icon>
+    </el-button>
     <el-container class="main-content">
-      <el-aside class="agenda-panel">
+      <el-aside
+        class="agenda-panel"
+        :class="showAgendaPanel ? 'agenda-expanded' : 'agenda-collapsed'"
+        v-show="showAgendaPanel"
+      >
         <AgendaDisplay
           :agendas="chatAgendas"
           :groupName="selectedGroupName"
@@ -35,7 +48,8 @@
       </el-aside>
 
       <el-main class="chat-area">
-        <ChatWindow
+        <MeetChatWindow
+          style="height: 200px; overflow-y: auto"
           :messages="messages"
           :users="userNames"
           :usersInfo="filteredUsersInfo"
@@ -44,14 +58,20 @@
           :sessionId="selectedSessionId"
           :userId="selectedUser"
           :aiProvider="selectedAiProvider"
+          :agentId="selectedGroupBot?.id"
           :botId="selectedGroupBot?.id"
           :promptVersion="promptVersions_cognitive_guidance"
+          :isTtsPlaying="isTtsPlaying"
         />
         <MessageInput
           :users="filteredUsersInfo"
           :groupId="selectedGroupId"
           @send-message="sendMessage"
+          @stop-audio-capture="stopAudioCapture"
+          :isTtsPlaying="isTtsPlaying"
+          ref="messageInputRef"
         />
+        <div id="jitsi-container" style="height: 50%; margin: 20px 0"></div>
       </el-main>
 
       <el-aside class="realtime-summary">
@@ -75,7 +95,7 @@ import AiBotDrawer from "../components/AiBotDrawer.vue";
 import ChatHeader from "../components/ChatHeader.vue";
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import api from "../services/apiService";
-import ChatWindow from "../components/ChatWindow.vue";
+import MeetChatWindow from "../components/MeetChatWindow.vue";
 import MessageInput from "../components/MessageInput.vue";
 import AgendaDisplay from "../components/AgendaDisplay.vue";
 import RealTimeSummary from "../components/RealTimeSummary.vue";
@@ -86,7 +106,7 @@ import {
   closeWebSocket,
   changeAiProviderAndTriggerSummary as triggerWebSocketAiSummary,
 } from "../services/websocketService";
-import { InfoFilled } from "@element-plus/icons-vue";
+import { InfoFilled, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 
 // ✅ **存储状态**
@@ -108,7 +128,19 @@ const selectedGroupBot = computed(() =>
 ); // 新增计算属性
 const showDrawer = ref(false); // 新增代码
 const promptVersions = ref({}); // 新增代码
+const showAgendaPanel = ref(false); // 新增代码
 const isInitialLoad = ref(true); // 新增代码
+const isTtsPlaying = ref(false);
+const messageInputRef = ref(null);
+
+const stopAudioCapture = () => {
+  // 可选：调用相关逻辑来停止识别，比如设置 isRecognizing = false;
+  if (messageInputRef.value?.stopAudioCapture) {
+    messageInputRef.value.stopAudioCapture();
+  } else {
+    console.warn("⚠️ 未能找到 messageInputRef 或 stopAudioCapture 方法");
+  }
+};
 
 // ✅ **新增计算属性 currentPromptVersion**
 const current_real_time_summary_PromptVersion = computed(() => {
@@ -138,10 +170,8 @@ const changeAiProvider = () => {
   if (!selectedGroupId.value) return;
   if (isInitialLoad.value) {
     isInitialLoad.value = false;
-    console.log("🔕 首次加载，跳过触发 AI 总结");
     return;
   }
-  console.log(`🔄 AI 供应商切换: ${selectedAiProvider.value}，触发 AI 总结`);
   triggerWebSocketAiSummary(selectedGroupId.value, selectedAiProvider.value);
 };
 
@@ -316,8 +346,6 @@ const initWebSocket = (groupId) => {
         messages.value.push(newMessage);
         scrollToBottom();
       }
-      console.log("🪐输出每一条消息", parsedData);
-
       if (parsedData.type === "ai_summary") {
         console.log("🤖 AI 会议总结收到:", parsedData.summary_text);
         chatSummaries.value.push({ summary_text: parsedData.summary_text });
@@ -392,7 +420,6 @@ const handleUpdatePrompt = async () => {
   if (!selectedGroupId.value) return;
   try {
     await api.generatePrompt(selectedGroupId.value);
-    console.log("✅ Prompt 已更新");
     ElMessage.success("GroupBot prompt updated successfully!");
   } catch (error) {
     console.error("❌ 更新 Prompt 失败:", error);
@@ -411,6 +438,24 @@ const handlePromptLoaded = (payload) => {
 onMounted(() => {
   fetchGroups();
   fetchAllAiBots(); // ✅ 这里初始化获取所有机器人
+
+  // ✅ 动态加载 Jitsi IFrame API 并初始化会议
+  const script = document.createElement("script");
+  script.src = "https://meet.jit.si/external_api.js";
+  script.onload = () => {
+    const domain = "meet.jit.si";
+    const options = {
+      roomName: "MyMeetingRoom",
+      width: "100%",
+      height: "100%",
+      parentNode: document.getElementById("jitsi-container"),
+      userInfo: {
+        displayName: "Participant",
+      },
+    };
+    new window.JitsiMeetExternalAPI(domain, options);
+  };
+  document.head.appendChild(script);
 });
 </script>
 
@@ -435,7 +480,7 @@ onMounted(() => {
 
 /* 📌 小组选择器 */
 .agenda-panel {
-  flex: 1;
+  flex: 0.5;
 }
 .agenda-display {
   width: 100%;
@@ -496,7 +541,7 @@ onMounted(() => {
 
 /* 📌 聊天区域 */
 .chat-area {
-  flex: 1.5;
+  flex: 0.7;
   background: white;
   padding: 15px;
   border-radius: 10px;
@@ -507,11 +552,31 @@ onMounted(() => {
 
 /* 📌 AI 实时总结面板 */
 .realtime-summary {
-  flex: 1.2;
+  flex: 0.3;
   padding: 15px;
   background: #f9f9f9;
   border-radius: 10px;
   box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.08);
   margin-left: 15px;
+}
+
+/* 📌 议程面板状态 */
+.agenda-collapsed {
+  display: none;
+}
+
+.agenda-expanded {
+  display: block;
+}
+.toggle-user-card-button {
+  position: fixed;
+  top: 120px;
+  left: 0;
+  z-index: 999;
+  background-color: #ffffff;
+  border: 1px solid #dcdfe6;
+  padding: 50px 5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 0 6px 6px 0;
 }
 </style>
